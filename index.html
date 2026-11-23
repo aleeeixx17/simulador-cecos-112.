@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador CECOS CAT112 / 061 SEM — CFGM Emergencias Sanitarias</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- React & Babel para ejecución directa en GitHub Pages sin compilación -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* Estilo clásico consola despacho CECOS / Windows Classic */
+    .win-panel {
+      background-color: #d4d0c8;
+      border-top: 2px solid #ffffff;
+      border-left: 2px solid #ffffff;
+      border-right: 2px solid #404040;
+      border-bottom: 2px solid #404040;
+      box-shadow: inset -1px -1px 0 #808080, inset 1px 1px 0 #dfdfdf;
+    }
+    .win-inset {
+      background-color: #ffffff;
+      border-top: 2px solid #808080;
+      border-left: 2px solid #808080;
+      border-right: 2px solid #ffffff;
+      border-bottom: 2px solid #ffffff;
+      box-shadow: inset 1px 1px 0 #404040;
+    }
+    .win-btn {
+      background-color: #d4d0c8;
+      border-top: 2px solid #ffffff;
+      border-left: 2px solid #ffffff;
+      border-right: 2px solid #404040;
+      border-bottom: 2px solid #404040;
+      box-shadow: inset -1px -1px 0 #808080;
+      color: #000000;
+      font-family: 'Tahoma', 'MS Sans Serif', sans-serif;
+      transition: none;
+    }
+    .win-btn:active:not(:disabled) {
+      border-top: 2px solid #404040;
+      border-left: 2px solid #404040;
+      border-right: 2px solid #ffffff;
+      border-bottom: 2px solid #ffffff;
+      box-shadow: none;
+      transform: translate(1px, 1px);
+    }
+    .win-btn:disabled {
+      color: #808080;
+      text-shadow: 1px 1px 0 #ffffff;
+      cursor: not-allowed;
+    }
+    .win-titlebar {
+      background: linear-gradient(90deg, #0a246a 0%, #a6caf0 100%);
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      70% { transform: scale(1.12); opacity: 0; }
+      100% { transform: scale(0.95); opacity: 0; }
+    }
+    .animate-ring {
+      animation: pulse-ring 1.4s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen select-none">
+  <div id="root"></div>
+
+  <!-- Firebase SDK (v10 Modular vía CDN) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+    import {
+      getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+      onSnapshot, query, orderBy, serverTimestamp, setDoc, getDocs
+    } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+    window.FirebaseSDK = {
+      initializeApp, getAuth, signInAnonymously,
+      getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+      onSnapshot, query, orderBy, serverTimestamp, setDoc, getDocs
+    };
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+
+    // =========================================================================
+    // USUARIOS PREDEFINIDOS DEL AULA (CFGM EMERGENCIAS SANITARIAS)
+    // =========================================================================
+    const USUARIOS_AULA = [
+      { user: 'profe', pass: '112', nombre: 'Docente Teleemergencias', rol: 'DOCENTE', puesto: 'Supervisión / Evaluación' },
+      { user: 'demanda1', pass: '112', nombre: 'Operador Demanda 01 (CAT112)', rol: 'DEMANDA', puesto: 'Consola Recepción 112' },
+      { user: 'demanda2', pass: '112', nombre: 'Operador Demanda 02 (CAT112)', rol: 'DEMANDA', puesto: 'Consola Recepción 112' },
+      { user: 'demanda3', pass: '112', nombre: 'Operador Demanda 03 (061)', rol: 'DEMANDA', puesto: 'Consola Recepción 061' },
+      { user: 'respuesta1', pass: '061', nombre: 'Gestor Respuesta 01 (061 SEM)', rol: 'RESPUESTA', puesto: 'Mesa Coordinación Flota' },
+      { user: 'respuesta2', pass: '061', nombre: 'Gestor Respuesta 02 (061 SEM)', rol: 'RESPUESTA', puesto: 'Mesa Coordinación Flota' },
+      { user: 'unidad1', pass: 'sem', nombre: 'Indicativo B-412 (SVB Barcelona)', rol: 'UNIDAD', indicativo: 'B-412', puesto: 'Dotación SVB' },
+      { user: 'unidad2', pass: 'sem', nombre: 'Indicativo A-108 (SVA Medicalizada)', rol: 'UNIDAD', indicativo: 'A-108', puesto: 'Dotación SVA' },
+      { user: 'unidad3', pass: 'sem', nombre: 'Indicativo B-519 (SVB Hospitalet)', rol: 'UNIDAD', indicativo: 'B-519', puesto: 'Dotación SVB' },
+      { user: 'unidad4', pass: 'sem', nombre: 'Indicativo V-02 (VIR Intervención)', rol: 'UNIDAD', indicativo: 'V-02', puesto: 'Vehículo Intervención Rápida' },
+      { user: 'unidad5', pass: 'sem', nombre: 'Indicativo H-01 (Helicóptero SEM)', rol: 'UNIDAD', indicativo: 'H-01', puesto: 'Helitransportada' }
+    ];
+
+    const UNIDADES_INICIALES = [
+      { id: 'B-412', tipo: 'SVB', base: 'Base Eixample (BCN)', estado: 'DISPONIBLE', incidenteId: null },
+      { id: 'A-108', tipo: 'SVA (UME)', base: 'Base Clínic (BCN)', estado: 'DISPONIBLE', incidenteId: null },
+      { id: 'B-519', tipo: 'SVB', base: 'Base Bellvitge (L\'H)', estado: 'DISPONIBLE', incidenteId: null },
+      { id: 'V-02',  tipo: 'VIR', base: 'Base Sant Pau (BCN)', estado: 'DISPONIBLE', incidenteId: null },
+      { id: 'H-01',  tipo: 'HEMS', base: 'Helipuerto Sabadell', estado: 'DISPONIBLE', incidenteId: null }
+    ];
+
+    const TIPOS_DEMANDA = [
+      '01 - Dolencia / Enfermedad en domicilio',
+      '02 - Accidente de tráfico con heridos',
+      '03 - Parada Cardiorrespiratoria (PCR)',
+      '04 - Dolor torácico / Sospecha SCA',
+      '05 - Disnea / Insuficiencia respiratoria',
+      '06 - Alteración consciencia / Síncope / Ictus',
+      '07 - Caída / Traumatismo en vía pública',
+      '08 - Intoxicación / Agitación psiquiátrica',
+      '09 - Incidente Múltiples Víctimas (IMV)'
+    ];
+
+    const CLASIFICACIONES = [
+      { code: 'P0 - EMERGENCIA VITAL (SVA)', color: 'bg-red-700 text-white' },
+      { code: 'P1 - URGENCIA NO DEMORABLE (SVB/SVA)', color: 'bg-orange-600 text-white' },
+      { code: 'P2 - URGENCIA DEMORABLE (SVB)', color: 'bg-yellow-500 text-black' },
+      { code: 'P3 - CONSULTA MÉDICA / CONSEJO 061', color: 'bg-emerald-700 text-white' }
+    ];
+
+    const CONSEJOS_PREARRIVO = [
+      'Mantener la calma, no colgar el teléfono y dejar acceso libre al portal.',
+      'Iniciar compresiones torácicas (RCP) 100-120/min en centro del pecho. Buscar DEA.',
+      'Colocar en Posición Lateral de Seguridad (PLS) y vigilar respiración.',
+      'No dar de comer ni beber. Mantener en reposo absoluto sentado/semisentado.',
+      'Comprimir punto sangrante con gasas o paño limpio sin retirar apósitos.',
+      'No mover al herido salvo peligro inminente de incendio o atropello.'
+    ];
+
+    const CASOS_PRACTICOS_ALERTANTE = [
+      {
+        titulo: 'Caso 1: Dolor torácico en vía pública',
+        telefono: '644128930',
+        alertante: 'Marta Puig (Transeúnte)',
+        municipio: 'Barcelona',
+        poblacion: 'Eixample',
+        direccion: 'Carrer de Balmes, 145 (esquina Rosselló)',
+        notas: 'Varón de unos 58 años sentado en un banco, pálido, sudoroso, se lleva la mano al pecho y dice que le oprime mucho desde hace 15 minutos. Consciente y respira con dificultad.',
+        nombrePac: 'Carlos Soler',
+        edad: '58',
+        sexo: 'H'
+      },
+      {
+        titulo: 'Caso 2: Posible PCR en domicilio',
+        telefono: '934512089',
+        alertante: 'Jordi Ferrer (Hijo)',
+        municipio: 'L\'Hospitalet de Llobregat',
+        poblacion: 'Centre',
+        direccion: 'Rambla Just Oliveras, 32, 3º 2ª',
+        notas: 'Mi padre de 72 años se ha desplomado en el salón hace 2 minutos. No responde cuando le llamo ni le sacudo, y parece que no respira normal (boquea). Tiene antecedentes de corazón.',
+        nombrePac: 'Antoni Ferrer',
+        edad: '72',
+        sexo: 'H'
+      },
+      {
+        titulo: 'Caso 3: Accidente moto vs turismo',
+        telefono: '619884321',
+        alertante: 'Laura Gómez (Testigo)',
+        municipio: 'Barcelona',
+        poblacion: 'Sant Martí',
+        direccion: 'Avinguda Diagonal, 211 (frente Torre Glòries)',
+        notas: 'Colisión entre un coche y una motocicleta. El motorista de unos 26 años está tendido en la calzada con el casco puesto, consciente pero se queja de mucho dolor en pierna derecha y cadera.',
+        nombrePac: 'Marc Vidal',
+        edad: '26',
+        sexo: 'H'
+      }
+    ];
+
+    // =========================================================================
+    // SONIDOS SINTETIZADOS (RING LLAMADA & ROGER BEEP TETRA WALKIE-TALKIE)
+    // =========================================================================
+    const playTone = (type) => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'ptt_in') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1100, ctx.currentTime);
+          osc.frequency.setValueAtTime(1450, ctx.currentTime + 0.06);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.15);
+        } else if (type === 'ptt_out') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(950, ctx.currentTime);
+          osc.frequency.setValueAtTime(680, ctx.currentTime + 0.07);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.17);
+        } else if (type === 'ring') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(440, ctx.currentTime);
+          gain.gain.setValueAtTime(0.08, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.36);
+        }
+      } catch (e) {}
+    };
+
+    // =========================================================================
+    // COMPONENTE PRINCIPAL
+    // =========================================================================
+    function App() {
+      // Estado de red: 'LOCAL' (mismo navegador/PC) o 'FIREBASE' (toda el aula)
+      const [firebaseConfig, setFirebaseConfig] = useState(() => {
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const cfgParam = urlParams.get('cfg');
+          if (cfgParam) {
+            const decoded = JSON.parse(atob(cfgParam));
+            localStorage.setItem('cecos_fb_config', JSON.stringify(decoded));
+            return decoded;
+          }
+          const saved = localStorage.getItem('cecos_fb_config');
+          return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+          return null;
+        }
+      });
+
+      const [dbInstance, setDbInstance] = useState(null);
+      const [netStatus, setNetStatus] = useState('LOCAL'); // 'LOCAL' | 'CONNECTING' | 'CLOUD'
+      const [showConfigModal, setShowConfigModal] = useState(false);
+
+      // Navegación principal: 'ALERTANTE' (acceso libre llamada) o 'CECOS' (login alumnos/profe)
+      const [vistaPrincipal, setVistaPrincipal] = useState('CECOS');
+      const [usuarioActual, setUsuarioActual] = useState(null);
+
+      // Datos compartidos en tiempo real
+      const [incidentes, setIncidentes] = useState([]);
+      const [unidades, setUnidades] = useState(UNIDADES_INICIALES);
+      const [mensajesRadio, setMensajesRadio] = useState([]);
+
+      // Inicializar conexión Firebase si hay configuración
+      useEffect(() => {
+        if (!firebaseConfig) {
+          setNetStatus('LOCAL');
+          cargarDatosLocales();
+          return;
+        }
+
+        let unsubInc = null;
+        let unsubUni = null;
+        let unsubRad = null;
+
+        const initCloud = async () => {
+          setNetStatus('CONNECTING');
+          // Esperar a que cargue el módulo CDN
+          let intentos = 0;
+          while (!window.FirebaseSDK && intentos < 30) {
+            await new Promise(r => setTimeout(r, 150));
+            intentos++;
+          }
+          if (!window.FirebaseSDK) {
+            setNetStatus('LOCAL');
+            cargarDatosLocales();
+            return;
+          }
+
+          try {
+            const { initializeApp, getAuth, signInAnonymously, getFirestore, collection, onSnapshot, query, orderBy, doc, setDoc, getDocs } = window.FirebaseSDK;
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            await signInAnonymously(auth);
+            const db = getFirestore(app);
+            setDbInstance(db);
+            setNetStatus('CLOUD');
+
+            // Inicializar unidades si no existen
+            const uniSnap = await getDocs(collection(db, 'cecos_unidades'));
+            if (uniSnap.empty) {
+              for (const u of UNIDADES_INICIALES) {
+                await setDoc(doc(db, 'cecos_unidades', u.id), u);
+              }
+            }
+
+            unsubInc = onSnapshot(query(collection(db, 'cecos_incidentes'), orderBy('timestamp', 'desc')), (snap) => {
+              setIncidentes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            });
+
+            unsubUni = onSnapshot(collection(db, 'cecos_unidades'), (snap) => {
+              if (!snap.empty) {
+                setUnidades(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+              }
+            });
+
+            unsubRad = onSnapshot(query(collection(db, 'cecos_radio'), orderBy('timestamp', 'asc')), (snap) => {
+              setMensajesRadio(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            });
+          } catch (err) {
+            console.error('Error conectando Firebase:', err);
+            alert('Error conectando con Firebase. Revisa las credenciales o las reglas de Firestore. Volviendo a Modo Local.');
+            setNetStatus('LOCAL');
+            cargarDatosLocales();
+          }
+        };
+
+        initCloud();
+        return () => {
+          if (unsubInc) unsubInc();
+          if (unsubUni) unsubUni();
+          if (unsubRad) unsubRad();
+        };
+      }, [firebaseConfig]);
+
+      // Sincronización en Modo Local (entre pestañas del mismo navegador)
+      const cargarDatosLocales = () => {
+        try {
+          const inc = JSON.parse(localStorage.getItem('cecos_local_inc') || '[]');
+          const uni = JSON.parse(localStorage.getItem('cecos_local_uni') || 'null');
+          const rad = JSON.parse(localStorage.getItem('cecos_local_rad') || '[]');
+          setIncidentes(inc);
+          setUnidades(uni || UNIDADES_INICIALES);
+          setMensajesRadio(rad);
+        } catch (e) {}
+      };
+
+      useEffect(() => {
+        if (netStatus !== 'LOCAL') return;
+        const onStorage = (e) => {
+          if (e.key && e.key.startsWith('cecos_local_')) {
+            cargarDatosLocales();
+          }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+      }, [netStatus]);
+
+      // Operaciones CRUD unificadas (Local o Cloud)
+      const crearIncidente = async (nuevoInc) => {
+        const numFicha = 'CAT-' + Math.floor(100000 + Math.random() * 900000);
+        const now = new Date();
+        const payload = {
+          ...nuevoInc,
+          numFicha,
+          fecha: now.toLocaleDateString('es-ES'),
+          horaLlamada: now.toLocaleTimeString('es-ES'),
+          horaTraspaso: '',
+          estado: 'LLAMADA_ENTRANTE', // LLAMADA_ENTRANTE -> EN_ATENCION -> TRASPASADO -> ASIGNADO -> FINALIZADO
+          operadorDemanda: '',
+          gestorRespuesta: '',
+          tipoDemanda: '',
+          interrogatorio: '',
+          clasificacion: '',
+          consejoAlertante: '',
+          recursosAsignados: [],
+          cronologia: [
+            { hora: now.toLocaleTimeString('es-ES'), texto: `Llamada entrante recibida en línea ${nuevoInc.linea || '112'} desde ${nuevoInc.telefono}` }
+          ],
+          timestamp: Date.now()
+        };
+
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { collection, addDoc } = window.FirebaseSDK;
+          const ref = await addDoc(collection(dbInstance, 'cecos_incidentes'), payload);
+          return { id: ref.id, ...payload };
+        } else {
+          const item = { id: 'loc_' + Date.now(), ...payload };
+          const lista = [item, ...incidentes];
+          setIncidentes(lista);
+          localStorage.setItem('cecos_local_inc', JSON.stringify(lista));
+          return item;
+        }
+      };
+
+      const actualizarIncidente = async (id, cambios) => {
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { doc, updateDoc } = window.FirebaseSDK;
+          await updateDoc(doc(dbInstance, 'cecos_incidentes', id), cambios);
+        } else {
+          const lista = incidentes.map(inc => inc.id === id ? { ...inc, ...cambios } : inc);
+          setIncidentes(lista);
+          localStorage.setItem('cecos_local_inc', JSON.stringify(lista));
+        }
+      };
+
+      const actualizarUnidad = async (unidadId, cambios) => {
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { doc, updateDoc } = window.FirebaseSDK;
+          await updateDoc(doc(dbInstance, 'cecos_unidades', unidadId), cambios);
+        } else {
+          const lista = unidades.map(u => u.id === unidadId ? { ...u, ...cambios } : u);
+          setUnidades(lista);
+          localStorage.setItem('cecos_local_uni', JSON.stringify(lista));
+        }
+      };
+
+      const enviarMensajeRadio = async (msg) => {
+        const payload = {
+          ...msg,
+          hora: new Date().toLocaleTimeString('es-ES'),
+          timestamp: Date.now()
+        };
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { collection, addDoc } = window.FirebaseSDK;
+          await addDoc(collection(dbInstance, 'cecos_radio'), payload);
+        } else {
+          const lista = [...mensajesRadio, { id: 'rad_' + Date.now(), ...payload }];
+          setMensajesRadio(lista);
+          localStorage.setItem('cecos_local_rad', JSON.stringify(lista));
+        }
+      };
+
+      const reiniciarSimulacion = async () => {
+        if (!confirm('¿Seguro que deseas borrar todos los incidentes, mensajes de radio y liberar todas las ambulancias?')) return;
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { collection, getDocs, deleteDoc, doc, setDoc } = window.FirebaseSDK;
+          const incSnap = await getDocs(collection(dbInstance, 'cecos_incidentes'));
+          for (const d of incSnap.docs) await deleteDoc(doc(dbInstance, 'cecos_incidentes', d.id));
+          const radSnap = await getDocs(collection(dbInstance, 'cecos_radio'));
+          for (const d of radSnap.docs) await deleteDoc(doc(dbInstance, 'cecos_radio', d.id));
+          for (const u of UNIDADES_INICIALES) await setDoc(doc(dbInstance, 'cecos_unidades', u.id), u);
+        } else {
+          localStorage.removeItem('cecos_local_inc');
+          localStorage.removeItem('cecos_local_rad');
+          localStorage.setItem('cecos_local_uni', JSON.stringify(UNIDADES_INICIALES));
+          setIncidentes([]);
+          setMensajesRadio([]);
+          setUnidades(UNIDADES_INICIALES);
+        }
+      };
+
+      const llamadasEntrantes = incidentes.filter(i => i.estado === 'LLAMADA_ENTRANTE').length;
+
+      return (
+        <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
+          {/* BARRA SUPERIOR GLOBAL DE LA SALA CECOS */}
+          <header className="bg-slate-950 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-600 text-white font-black px-2.5 py-1 rounded text-sm tracking-wider shadow">
+                CAT112 / 061
+              </div>
+              <div>
+                <h1 className="font-bold text-sm md:text-base text-white leading-tight">
+                  SIMULADOR CECOS — TELEEMERGENCIAS
+                </h1>
+                <p className="text-xs text-slate-400">CFGM Emergencias Sanitarias · Sala de Coordinación</p>
+              </div>
+            </div>
+
+            {/* Selector de Portal: Teléfono Alertante vs Sala CECOS */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVistaPrincipal('ALERTANTE')}
+                className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition ${
+                  vistaPrincipal === 'ALERTANTE'
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <i className="fa-solid fa-phone-volume"></i>
+                Teléfono Alertante (112/061)
+              </button>
+
+              <button
+                onClick={() => setVistaPrincipal('CECOS')}
+                className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition relative ${
+                  vistaPrincipal === 'CECOS'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <i className="fa-solid fa-headset"></i>
+                Consola Sala CECOS
+                {llamadasEntrantes > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce">
+                    {llamadasEntrantes}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowConfigModal(true)}
+                className={`px-2.5 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 border ${
+                  netStatus === 'CLOUD'
+                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                    : 'bg-amber-950/80 border-amber-600 text-amber-300'
+                }`}
+                title="Configurar conexión multi-ordenador del aula"
+              >
+                <span className={`w-2 h-2 rounded-full ${netStatus === 'CLOUD' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                {netStatus === 'CLOUD' ? 'Red Aula Activa' : 'Modo Local (1 PC)'}
+              </button>
+            </div>
+          </header>
+
+          {/* CONTENIDO PRINCIPAL */}
+          <main className="flex-1 flex flex-col">
+            {vistaPrincipal === 'ALERTANTE' ? (
+              <PortalAlertante
+                crearIncidente={crearIncidente}
+                incidentes={incidentes}
+              />
+            ) : !usuarioActual ? (
+              <LoginCECOS onLogin={(u) => setUsuarioActual(u)} />
+            ) : (
+              <SalaCECOS
+                usuario={usuarioActual}
+                onLogout={() => setUsuarioActual(null)}
+                incidentes={incidentes}
+                unidades={unidades}
+                mensajesRadio={mensajesRadio}
+                crearIncidente={crearIncidente}
+                actualizarIncidente={actualizarIncidente}
+                actualizarUnidad={actualizarUnidad}
+                enviarMensajeRadio={enviarMensajeRadio}
+                reiniciarSimulacion={reiniciarSimulacion}
+              />
+            )}
+          </main>
+
+          {/* MODAL DE CONFIGURACIÓN DE RED DEL AULA (FIREBASE) */}
+          {showConfigModal && (
+            <ModalConfigRed
+              firebaseConfig={firebaseConfig}
+              netStatus={netStatus}
+              onSave={(cfg) => {
+                if (cfg) {
+                  localStorage.setItem('cecos_fb_config', JSON.stringify(cfg));
+                } else {
+                  localStorage.removeItem('cecos_fb_config');
+                }
+                setFirebaseConfig(cfg);
+                setShowConfigModal(false);
+              }}
+              onClose={() => setShowConfigModal(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 1. PORTAL DEL ALERTANTE (LLAMADA AL 112 / 061)
+    // =========================================================================
+    function PortalAlertante({ crearIncidente, incidentes }) {
+      const [linea, setLinea] = useState('112');
+      const [telefono, setTelefono] = useState('6' + Math.floor(10000000 + Math.random() * 89999999));
+      const [alertante, setAlertante] = useState('');
+      const [municipio, setMunicipio] = useState('Barcelona');
+      const [poblacion, setPoblacion] = useState('');
+      const [direccion, setDireccion] = useState('');
+      const [notas, setNotas] = useState('');
+      const [nombrePac, setNombrePac] = useState('');
+      const [edad, setEdad] = useState('');
+      const [sexo, setSexo] = useState('H');
+      const [llamadaActivaId, setLlamadaActivaId] = useState(null);
+
+      const llamadaActual = useMemo(
+        () => incidentes.find(i => i.id === llamadaActivaId),
+        [incidentes, llamadaActivaId]
+      );
+
+      const cargarCaso = (caso) => {
+        setTelefono(caso.telefono);
+        setAlertante(caso.alertante);
+        setMunicipio(caso.municipio);
+        setPoblacion(caso.poblacion);
+        setDireccion(caso.direccion);
+        setNotas(caso.notas);
+        setNombrePac(caso.nombrePac);
+        setEdad(caso.edad);
+        setSexo(caso.sexo);
+      };
+
+      const realizarLlamada = async (e) => {
+        e.preventDefault();
+        if (!direccion.trim() || !notas.trim()) {
+          alert('Por favor indica al menos la dirección y qué está ocurriendo.');
+          return;
+        }
+        playTone('ring');
+        const inc = await crearIncidente({
+          linea,
+          telefono,
+          alertante: alertante || 'Alertante anónimo',
+          municipio,
+          poblacion,
+          direccion,
+          notas,
+          nombrePac,
+          edad,
+          sexo
+        });
+        setLlamadaActivaId(inc.id);
+      };
+
+      return (
+        <div className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-red-700 to-red-900 px-5 py-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl">
+                  <i className="fa-solid fa-phone-flip"></i>
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg text-white">Terminal de Llamada de Emergencia</h2>
+                  <p className="text-xs text-red-100">Simulación de llamada entrante a Central CECOS (112 / 061)</p>
+                </div>
+              </div>
+
+              {/* Botones rápidos de supuestos clínicos para el alumno */}
+              <div className="flex flex-wrap gap-1.5">
+                {CASOS_PRACTICOS_ALERTANTE.map((c, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => cargarCaso(c)}
+                    className="bg-black/30 hover:bg-black/50 text-white text-xs px-2.5 py-1 rounded border border-white/20 transition"
+                  >
+                    <i className="fa-solid fa-wand-magic-sparkles mr-1"></i>
+                    Supuesto {idx + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {llamadaActual ? (
+              <div className="p-6 text-center space-y-5">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-600/20 border-2 border-red-500 text-red-400 text-3xl animate-pulse">
+                  <i className="fa-solid fa-phone-volume"></i>
+                </div>
+
+                <div>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-700 text-amber-300">
+                    FICHA {llamadaActual.numFicha} · LÍNEA {llamadaActual.linea}
+                  </span>
+                  <h3 className="text-xl font-bold mt-2">
+                    {llamadaActual.estado === 'LLAMADA_ENTRANTE' && 'Llamando al 112... Esperando que descuelgue el Gestor de Demanda'}
+                    {llamadaActual.estado === 'EN_ATENCION' && `En línea con ${llamadaActual.operadorDemanda || 'Operador CECOS'}`}
+                    {llamadaActual.estado === 'TRASPASADO' && 'Llamada clasificada y traspasada a Coordinación 061'}
+                    {llamadaActual.estado === 'ASIGNADO' && '¡Recurso sanitario movilizado hacia el lugar!'}
+                    {llamadaActual.estado === 'FINALIZADO' && 'Servicio finalizado'}
+                  </h3>
+                </div>
+
+                {llamadaActual.consejoAlertante && (
+                  <div className="max-w-xl mx-auto bg-emerald-950/80 border border-emerald-500 rounded-lg p-4 text-left">
+                    <div className="text-xs font-bold text-emerald-400 uppercase mb-1">
+                      <i className="fa-solid fa-kit-medical mr-1.5"></i>
+                      Instrucciones pre-arribo del Operador CECOS:
+                    </div>
+                    <p className="text-sm text-white font-medium">{llamadaActual.consejoAlertante}</p>
+                  </div>
+                )}
+
+                {llamadaActual.recursosAsignados?.length > 0 && (
+                  <div className="max-w-xl mx-auto bg-blue-950/70 border border-blue-500 rounded-lg p-3">
+                    <span className="text-xs text-blue-300 font-bold uppercase">Unidades en camino: </span>
+                    <span className="text-sm font-black text-white">
+                      {llamadaActual.recursosAsignados.join(', ')}
+                    </span>
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    onClick={() => setLlamadaActivaId(null)}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-lg text-sm font-bold"
+                  >
+                    Colgar y realizar nueva llamada
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={realizarLlamada} className="p-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Teléfono destino</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setLinea('112')}
+                        className={`py-2 rounded font-black text-sm border ${
+                          linea === '112' ? 'bg-red-600 border-red-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'
+                        }`}
+                      >
+                        112 Emergencias
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLinea('061')}
+                        className={`py-2 rounded font-black text-sm border ${
+                          linea === '061' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'
+                        }`}
+                      >
+                        061 Salut Respon
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Tu Teléfono (CLI)</label>
+                    <input
+                      type="text"
+                      value={telefono}
+                      onChange={e => setTelefono(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Nombre Alertante / Relación</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Ana López (Hija / Testigo)"
+                      value={alertante}
+                      onChange={e => setAlertante(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Municipio *</label>
+                    <input
+                      type="text"
+                      value={municipio}
+                      onChange={e => setMunicipio(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Barrio / Población</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Eixample / Centre"
+                      value={poblacion}
+                      onChange={e => setPoblacion(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Dirección Exacta / Punto Km *</label>
+                    <input
+                      type="text"
+                      placeholder="Calle, número, piso, referencias..."
+                      value={direccion}
+                      onChange={e => setDireccion(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+                    ¿Qué está ocurriendo? (Descripción del incidente y estado de la víctima) *
+                  </label>
+                  <textarea
+                    rows="3"
+                    placeholder="Explica qué ha pasado, si está consciente, si respira, síntomas principales..."
+                    value={notas}
+                    onChange={e => setNotas(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                    required
+                  ></textarea>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/60 p-3 rounded-lg border border-slate-700">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nombre Paciente (si se conoce)</label>
+                    <input
+                      type="text"
+                      value={nombrePac}
+                      onChange={e => setNombrePac(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Edad aproximada</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. 65"
+                      value={edad}
+                      onChange={e => setEdad(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Sexo (H/M)</label>
+                    <select
+                      value={sexo}
+                      onChange={e => setSexo(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white"
+                    >
+                      <option value="H">H - Hombre</option>
+                      <option value="M">M - Mujer</option>
+                      <option value="D">Desconocido</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="bg-red-600 hover:bg-red-500 text-white font-black px-6 py-3 rounded-lg shadow-lg shadow-red-600/30 flex items-center gap-2 text-base transition"
+                  >
+                    <i className="fa-solid fa-phone-volume"></i>
+                    LLAMAR AL {linea} AHORA
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 2. PANTALLA DE LOGIN DE SALA CECOS (ALUMNOS Y DOCENTE)
+    // =========================================================================
+    function LoginCECOS({ onLogin }) {
+      const [userInput, setUserInput] = useState('');
+      const [passInput, setPassInput] = useState('');
+      const [error, setError] = useState('');
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const encontrado = USUARIOS_AULA.find(
+          u => u.user.toLowerCase() === userInput.trim().toLowerCase() && u.pass === passInput.trim()
+        );
+        if (!encontrado) {
+          setError('Usuario o contraseña incorrectos. Consulta el listado de puestos.');
+          return;
+        }
+        onLogin(encontrado);
+      };
+
+      return (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="max-w-3xl w-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-2xl">
+            <div className="flex flex-col justify-between">
+              <div>
+                <div className="inline-block bg-blue-600/20 text-blue-400 border border-blue-500/40 text-xs font-bold px-2.5 py-1 rounded mb-3">
+                  ACCESO RESTRINGIDO · OPERADORES CECOS
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Identificación de Puesto</h2>
+                <p className="text-sm text-slate-400 mb-5">
+                  Introduce las credenciales asignadas por el profesor para acceder a tu consola de Teleemergencias.
+                </p>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Usuario</label>
+                    <input
+                      type="text"
+                      value={userInput}
+                      onChange={e => { setUserInput(e.target.value); setError(''); }}
+                      placeholder="Ej. demanda1, respuesta1, unidad1..."
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Contraseña</label>
+                    <input
+                      type="password"
+                      value={passInput}
+                      onChange={e => { setPassInput(e.target.value); setError(''); }}
+                      placeholder="••••"
+                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                      required
+                    />
+                  </div>
+                  {error && <p className="text-xs text-red-400 font-semibold">{error}</p>}
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg transition"
+                  >
+                    Iniciar Turno en Sala
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Chuleta rápida de credenciales para el aula */}
+            <div className="bg-slate-900/90 border border-slate-700 rounded-lg p-4 text-xs space-y-2.5">
+              <h3 className="font-bold text-slate-200 uppercase tracking-wider border-b border-slate-800 pb-1.5">
+                Credenciales de Puestos del Aula
+              </h3>
+              <div className="space-y-1.5 text-slate-300">
+                <div className="p-2 rounded bg-slate-800/80 flex justify-between items-center">
+                  <span><strong className="text-amber-400">Gestor Demanda:</strong> demanda1 / demanda2 / demanda3</span>
+                  <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded">pass: 112</span>
+                </div>
+                <div className="p-2 rounded bg-slate-800/80 flex justify-between items-center">
+                  <span><strong className="text-emerald-400">Gestor Respuesta:</strong> respuesta1 / respuesta2</span>
+                  <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded">pass: 061</span>
+                </div>
+                <div className="p-2 rounded bg-slate-800/80 flex justify-between items-center">
+                  <span><strong className="text-cyan-400">Unidades (Walkie):</strong> unidad1 ... unidad5</span>
+                  <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded">pass: sem</span>
+                </div>
+                <div className="p-2 rounded bg-slate-800/80 flex justify-between items-center">
+                  <span><strong className="text-purple-400">Profesor / Evaluación:</strong> profe</span>
+                  <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded">pass: 112</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 pt-1">
+                * Consejo: haz clic sobre cualquier usuario arriba para autocompletar o escríbelo manualmente.
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 3. SALA DE COORDINACIÓN CECOS (CONSOLAS POR ROL + EMISORA TETRA)
+    // =========================================================================
+    function SalaCECOS({
+      usuario, onLogout, incidentes, unidades, mensajesRadio,
+      actualizarIncidente, actualizarUnidad, enviarMensajeRadio, reiniciarSimulacion
+    }) {
+      // Pestaña activa (el docente puede cambiar entre todas; el alumno entra en su rol y siempre ve el Walkie)
+      const [tabActiva, setTabActiva] = useState(usuario.rol === 'DOCENTE' ? 'DEMANDA' : usuario.rol);
+
+      return (
+        <div className="flex-1 flex flex-col">
+          {/* Sub-barra de puesto e identificación */}
+          <div className="bg-slate-800 border-b border-slate-700 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="bg-blue-600 text-white font-bold px-2 py-0.5 rounded">
+                {usuario.rol}
+              </span>
+              <span className="font-bold text-white">{usuario.nombre}</span>
+              <span className="text-slate-400 hidden sm:inline">({usuario.puesto})</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {usuario.rol === 'DOCENTE' && (
+                <>
+                  <button
+                    onClick={() => setTabActiva('DEMANDA')}
+                    className={`px-2.5 py-1 rounded font-bold ${tabActiva === 'DEMANDA' ? 'bg-slate-200 text-black' : 'bg-slate-700 text-slate-200'}`}
+                  >
+                    Consola Demanda
+                  </button>
+                  <button
+                    onClick={() => setTabActiva('RESPUESTA')}
+                    className={`px-2.5 py-1 rounded font-bold ${tabActiva === 'RESPUESTA' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-200'}`}
+                  >
+                    Consola Respuesta
+                  </button>
+                  <button
+                    onClick={() => setTabActiva('DOCENTE')}
+                    className={`px-2.5 py-1 rounded font-bold ${tabActiva === 'DOCENTE' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-200'}`}
+                  >
+                    Evaluación Aula
+                  </button>
+                  <button
+                    onClick={reiniciarSimulacion}
+                    className="px-2.5 py-1 rounded font-bold bg-red-900/70 hover:bg-red-800 text-red-200 border border-red-700 ml-2"
+                  >
+                    <i className="fa-solid fa-rotate-left mr-1"></i> Reset Práctica
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={onLogout}
+                className="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold ml-2"
+              >
+                Cerrar Turno
+              </button>
+            </div>
+          </div>
+
+          {/* Layout dividido: Consola principal izquierda + Emisora TETRA / Walkie-Talkie derecha */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 p-3">
+            <div className="lg:col-span-8 flex flex-col">
+              {tabActiva === 'DEMANDA' && (
+                <ConsolaGestorDemanda
+                  usuario={usuario}
+                  incidentes={incidentes}
+                  actualizarIncidente={actualizarIncidente}
+                />
+              )}
+              {tabActiva === 'RESPUESTA' && (
+                <ConsolaGestorRespuesta
+                  usuario={usuario}
+                  incidentes={incidentes}
+                  unidades={unidades}
+                  actualizarIncidente={actualizarIncidente}
+                  actualizarUnidad={actualizarUnidad}
+                  enviarMensajeRadio={enviarMensajeRadio}
+                />
+              )}
+              {tabActiva === 'UNIDAD' && (
+                <ConsolaUnidadMovil
+                  usuario={usuario}
+                  incidentes={incidentes}
+                  unidades={unidades}
+                  actualizarIncidente={actualizarIncidente}
+                  actualizarUnidad={actualizarUnidad}
+                  enviarMensajeRadio={enviarMensajeRadio}
+                />
+              )}
+              {tabActiva === 'DOCENTE' && (
+                <PanelDocenteEvaluacion
+                  incidentes={incidentes}
+                  unidades={unidades}
+                  mensajesRadio={mensajesRadio}
+                />
+              )}
+            </div>
+
+            {/* PANEL LATERAL SIEMPRE VISIBLE: EMISORA TETRA / WALKIE-TALKIE */}
+            <div className="lg:col-span-4 flex flex-col">
+              <WalkieTalkieTETRA
+                usuario={usuario}
+                unidades={unidades}
+                mensajesRadio={mensajesRadio}
+                enviarMensajeRadio={enviarMensajeRadio}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 3A. CONSOLA GESTOR DE DEMANDA (ESTÉTICA CLÁSICA DESPACHO CECOS)
+    // =========================================================================
+    function ConsolaGestorDemanda({ usuario, incidentes, actualizarIncidente }) {
+      const [selectedId, setSelectedId] = useState(null);
+      const [form, setForm] = useState({
+        telefono: '',
+        alertante: '',
+        poblacion: '',
+        municipio: '',
+        direccion: '',
+        notas: '',
+        nombrePac: '',
+        edad: '',
+        sexo: 'H',
+        nss: '',
+        tipoDemanda: TIPOS_DEMANDA[0],
+        interrogatorio: '',
+        clasificacion: CLASIFICACIONES[1].code,
+        consejoAlertante: CONSEJOS_PREARRIVO[0]
+      });
+
+      const dirInputRef = useRef(null);
+      const clasifSelectRef = useRef(null);
+
+      const entrantes = incidentes.filter(i => i.estado === 'LLAMADA_ENTRANTE');
+      const enCurso = incidentes.filter(i => i.estado === 'EN_ATENCION');
+      const incidenteActivo = incidentes.find(i => i.id === selectedId);
+
+      // Cargar datos al seleccionar ficha
+      useEffect(() => {
+        if (incidenteActivo) {
+          setForm({
+            telefono: incidenteActivo.telefono || '',
+            alertante: incidenteActivo.alertante || '',
+            poblacion: incidenteActivo.poblacion || '',
+            municipio: incidenteActivo.municipio || '',
+            direccion: incidenteActivo.direccion || '',
+            notas: incidenteActivo.notas || '',
+            nombrePac: incidenteActivo.nombrePac || '',
+            edad: incidenteActivo.edad || '',
+            sexo: incidenteActivo.sexo || 'H',
+            nss: incidenteActivo.nss || '',
+            tipoDemanda: incidenteActivo.tipoDemanda || TIPOS_DEMANDA[0],
+            interrogatorio: incidenteActivo.interrogatorio || '',
+            clasificacion: incidenteActivo.clasificacion || CLASIFICACIONES[1].code,
+            consejoAlertante: incidenteActivo.consejoAlertante || CONSEJOS_PREARRIVO[0]
+          });
+        }
+      }, [selectedId]);
+
+      // Atajos de teclado clásicos de consola CECOS: Alt+D (Dirección), Alt+C (Clasificar), Alt+T (Traspasar)
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.altKey && e.key.toLowerCase() === 'd') {
+            e.preventDefault();
+            dirInputRef.current?.focus();
+          } else if (e.altKey && e.key.toLowerCase() === 'c') {
+            e.preventDefault();
+            clasifSelectRef.current?.focus();
+          } else if (e.altKey && e.key.toLowerCase() === 't') {
+            e.preventDefault();
+            if (incidenteActivo) traspasarARespuesta();
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      });
+
+      const atenderSiguienteLlamada = async () => {
+        const sig = entrantes[0] || enCurso[0];
+        if (!sig) {
+          alert('No hay llamadas entrantes en cola en este momento.');
+          return;
+        }
+        setSelectedId(sig.id);
+        if (sig.estado === 'LLAMADA_ENTRANTE') {
+          const hora = new Date().toLocaleTimeString('es-ES');
+          await actualizarIncidente(sig.id, {
+            estado: 'EN_ATENCION',
+            operadorDemanda: usuario.nombre,
+            cronologia: [...(sig.cronologia || []), { hora, texto: `Llamada atendida por ${usuario.nombre}` }]
+          });
+        }
+      };
+
+      const guardarCambiosFicha = async () => {
+        if (!incidenteActivo) return;
+        await actualizarIncidente(incidenteActivo.id, { ...form });
+        alert('Datos guardados en la ficha ' + incidenteActivo.numFicha);
+      };
+
+      const traspasarARespuesta = async () => {
+        if (!incidenteActivo) return;
+        if (!form.direccion.trim() || !form.clasificacion) {
+          alert('Debes completar la Dirección y la Clasificación antes de traspasar.');
+          return;
+        }
+        const hora = new Date().toLocaleTimeString('es-ES');
+        await actualizarIncidente(incidenteActivo.id, {
+          ...form,
+          estado: 'TRASPASADO',
+          horaTraspaso: hora,
+          operadorDemanda: usuario.nombre,
+          cronologia: [
+            ...(incidenteActivo.cronologia || []),
+            { hora, texto: `Ficha clasificada (${form.clasificacion}) y traspasada a Gestor de Respuesta por ${usuario.nombre}` }
+          ]
+        });
+        alert(`Ficha ${incidenteActivo.numFicha} traspasada correctamente a Coordinación 061.`);
+        setSelectedId(null);
+      };
+
+      return (
+        <div className="win-panel text-black rounded overflow-hidden flex flex-col flex-1 font-sans text-xs">
+          {/* Barra de título estilo Windows clásico */}
+          <div className="win-titlebar px-2.5 py-1 flex items-center justify-between text-white font-bold">
+            <div className="flex items-center gap-2">
+              <i className="fa-solid fa-phone-volume text-yellow-300"></i>
+              <span>Recepción de llamadas telefónicas - extensión [{usuario.user.toUpperCase()}]</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {entrantes.length > 0 && (
+                <span className="bg-red-600 text-white px-2 py-0.5 rounded animate-pulse font-black">
+                  ¡{entrantes.length} LLAMADA(S) ENTRANDO!
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Barra superior de acciones y cola de llamadas */}
+          <div className="p-2 border-b border-gray-400 flex flex-wrap items-center justify-between gap-2 bg-[#d4d0c8]">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={atenderSiguienteLlamada}
+                className={`win-btn px-3 py-1.5 font-bold flex items-center gap-2 ${
+                  entrantes.length > 0 ? 'bg-yellow-200 ring-2 ring-red-600' : ''
+                }`}
+              >
+                <i className="fa-solid fa-phone text-green-700 text-sm"></i>
+                Atender llamada ({entrantes.length})
+              </button>
+
+              <button
+                onClick={() => dirInputRef.current?.focus()}
+                className="win-btn px-2.5 py-1.5 font-semibold"
+              >
+                Dirección [Alt+D]
+              </button>
+
+              <button
+                onClick={() => clasifSelectRef.current?.focus()}
+                className="win-btn px-2.5 py-1.5 font-semibold"
+              >
+                Clasificar [Alt+C]
+              </button>
+            </div>
+
+            {/* Selector rápido de fichas activas */}
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold">Fichas en sala:</span>
+              <select
+                value={selectedId || ''}
+                onChange={e => setSelectedId(e.target.value || null)}
+                className="win-inset px-2 py-1 text-xs font-bold min-w-[200px]"
+              >
+                <option value="">-- Seleccionar ficha --</option>
+                {incidentes.map(inc => (
+                  <option key={inc.id} value={inc.id}>
+                    {inc.numFicha} | {inc.estado} | {inc.municipio}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Cuerpo dividido: Izquierda (Localización y Paciente) | Derecha (Cronología y Triaje) */}
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-3 p-3">
+            {/* COLUMNA IZQUIERDA (7 cols) */}
+            <div className="md:col-span-7 space-y-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold block mb-0.5">Teléfono Alertante:</label>
+                  <input
+                    type="text"
+                    value={form.telefono}
+                    onChange={e => setForm({ ...form, telefono: e.target.value })}
+                    className="win-inset w-full px-2 py-1 font-mono font-bold text-blue-900"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold block mb-0.5">Alertante / Relación:</label>
+                  <input
+                    type="text"
+                    value={form.alertante}
+                    onChange={e => setForm({ ...form, alertante: e.target.value })}
+                    className="win-inset w-full px-2 py-1"
+                  />
+                </div>
+              </div>
+
+              <div className="border border-gray-500 p-2 space-y-2 bg-[#dcd8d0]">
+                <div className="font-bold text-blue-900 border-b border-gray-400 pb-0.5">
+                  LOCALIZACIÓN DEL INCIDENTE
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold block mb-0.5">Municipio:</label>
+                    <input
+                      type="text"
+                      value={form.municipio}
+                      onChange={e => setForm({ ...form, municipio: e.target.value })}
+                      className="win-inset w-full px-2 py-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-0.5">Población / Barrio:</label>
+                    <input
+                      type="text"
+                      value={form.poblacion}
+                      onChange={e => setForm({ ...form, poblacion: e.target.value })}
+                      className="win-inset w-full px-2 py-1"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="font-bold block mb-0.5">Dirección exacta y referencias:</label>
+                  <input
+                    ref={dirInputRef}
+                    type="text"
+                    value={form.direccion}
+                    onChange={e => setForm({ ...form, direccion: e.target.value })}
+                    className="win-inset w-full px-2 py-1 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold block mb-0.5">Notas iniciales de la llamada:</label>
+                <textarea
+                  rows="3"
+                  value={form.notas}
+                  onChange={e => setForm({ ...form, notas: e.target.value })}
+                  className="win-inset w-full px-2 py-1"
+                ></textarea>
+              </div>
+
+              <div className="border border-gray-500 p-2 space-y-2 bg-[#dcd8d0]">
+                <div className="font-bold text-blue-900 border-b border-gray-400 pb-0.5">
+                  FILIACIÓN DEL PACIENTE
+                </div>
+                <div className="grid grid-cols-12 gap-2">
+                  <div className="col-span-6">
+                    <label className="font-bold block mb-0.5">Nombre y Apellidos:</label>
+                    <input
+                      type="text"
+                      value={form.nombrePac}
+                      onChange={e => setForm({ ...form, nombrePac: e.target.value })}
+                      className="win-inset w-full px-2 py-1"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="font-bold block mb-0.5">Edad:</label>
+                    <input
+                      type="text"
+                      value={form.edad}
+                      onChange={e => setForm({ ...form, edad: e.target.value })}
+                      className="win-inset w-full px-2 py-1"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="font-bold block mb-0.5">Sexo (H/M):</label>
+                    <select
+                      value={form.sexo}
+                      onChange={e => setForm({ ...form, sexo: e.target.value })}
+                      className="win-inset w-full px-1.5 py-1"
+                    >
+                      <option value="H">H</option>
+                      <option value="M">M</option>
+                      <option value="D">Desc.</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="font-bold block mb-0.5">Nº CIP / Seguridad Social:</label>
+                  <input
+                    type="text"
+                    placeholder="Opcional"
+                    value={form.nss}
+                    onChange={e => setForm({ ...form, nss: e.target.value })}
+                    className="win-inset w-full px-2 py-1 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* COLUMNA DERECHA (5 cols) */}
+            <div className="md:col-span-5 border-l border-gray-500 pl-3 flex flex-col justify-between space-y-2.5">
+              <div className="space-y-2">
+                <div className="bg-[#c0bcb4] p-2 border border-gray-500 grid grid-cols-2 gap-1 text-[11px]">
+                  <div><strong>Fecha:</strong> {incidenteActivo?.fecha || new Date().toLocaleDateString('es-ES')}</div>
+                  <div><strong>H. Llamada:</strong> {incidenteActivo?.horaLlamada || '--:--:--'}</div>
+                  <div><strong>Nº Ficha:</strong> <span className="text-blue-900 font-bold">{incidenteActivo?.numFicha || 'Pte.'}</span></div>
+                  <div><strong>Operador:</strong> {usuario.user.toUpperCase()}</div>
+                </div>
+
+                <div>
+                  <label className="font-bold block mb-0.5">Tipo de demanda:</label>
+                  <select
+                    value={form.tipoDemanda}
+                    onChange={e => setForm({ ...form, tipoDemanda: e.target.value })}
+                    className="win-inset w-full px-2 py-1 font-semibold"
+                  >
+                    {TIPOS_DEMANDA.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold block mb-0.5">Datos interrogatorio (Consciencia / Respiración / Síntomas):</label>
+                  <textarea
+                    rows="3"
+                    placeholder="Registra preguntas clave del protocolo de triaje..."
+                    value={form.interrogatorio}
+                    onChange={e => setForm({ ...form, interrogatorio: e.target.value })}
+                    className="win-inset w-full px-2 py-1"
+                  ></textarea>
+                </div>
+
+                <div>
+                  <label className="font-bold block mb-0.5">Clasificación / Prioridad:</label>
+                  <select
+                    ref={clasifSelectRef}
+                    value={form.clasificacion}
+                    onChange={e => setForm({ ...form, clasificacion: e.target.value })}
+                    className="win-inset w-full px-2 py-1 font-bold"
+                  >
+                    {CLASIFICACIONES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold block mb-0.5">Decir al alertante (Consejos pre-arribo):</label>
+                  <select
+                    value={form.consejoAlertante}
+                    onChange={e => setForm({ ...form, consejoAlertante: e.target.value })}
+                    className="win-inset w-full px-2 py-1 mb-1"
+                  >
+                    {CONSEJOS_PREARRIVO.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                  </select>
+                  <textarea
+                    rows="2"
+                    value={form.consejoAlertante}
+                    onChange={e => setForm({ ...form, consejoAlertante: e.target.value })}
+                    className="win-inset w-full px-2 py-1"
+                  ></textarea>
+                </div>
+              </div>
+
+              {/* Botonera inferior de traspaso */}
+              <div className="pt-2 border-t border-gray-500 flex flex-wrap gap-2 justify-between">
+                <button
+                  type="button"
+                  disabled={!incidenteActivo}
+                  onClick={guardarCambiosFicha}
+                  className="win-btn px-3 py-2 font-bold"
+                >
+                  <i className="fa-solid fa-floppy-disk mr-1 text-blue-800"></i>
+                  Guardar Ficha
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!incidenteActivo}
+                  onClick={traspasarARespuesta}
+                  className="win-btn px-4 py-2 font-black bg-emerald-200 flex items-center gap-1.5"
+                >
+                  <i className="fa-solid fa-share-from-square text-emerald-800"></i>
+                  Traspasar [Alt+T]
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 3B. CONSOLA GESTOR DE RESPUESTA (COORDINACIÓN DE RECURSOS 061 SEM)
+    // =========================================================================
+    function ConsolaGestorRespuesta({
+      usuario, incidentes, unidades, actualizarIncidente, actualizarUnidad, enviarMensajeRadio
+    }) {
+      const [selectedId, setSelectedId] = useState(null);
+      const pendientes = incidentes.filter(i => i.estado === 'TRASPASADO' || i.estado === 'ASIGNADO');
+      const incActivo = incidentes.find(i => i.id === selectedId) || pendientes[0] || null;
+
+      useEffect(() => {
+        if (!selectedId && pendientes.length > 0) {
+          setSelectedId(pendientes[0].id);
+        }
+      }, [pendientes.length]);
+
+      const asignarUnidad = async (unidad) => {
+        if (!incActivo) {
+          alert('Selecciona primero un incidente traspasado.');
+          return;
+        }
+        if (unidad.estado !== 'DISPONIBLE') {
+          alert(`La unidad ${unidad.id} no está disponible (${unidad.estado}).`);
+          return;
+        }
+        const hora = new Date().toLocaleTimeString('es-ES');
+        const nuevosRecursos = [...(incActivo.recursosAsignados || []), unidad.id];
+
+        await actualizarUnidad(unidad.id, {
+          estado: 'ACTIVADA',
+          incidenteId: incActivo.id
+        });
+
+        await actualizarIncidente(incActivo.id, {
+          estado: 'ASIGNADO',
+          gestorRespuesta: usuario.nombre,
+          recursosAsignados: nuevosRecursos,
+          cronologia: [
+            ...(incActivo.cronologia || []),
+            { hora, texto: `Unidad ${unidad.id} (${unidad.tipo}) movilizada por ${usuario.nombre}` }
+          ]
+        });
+
+        await enviarMensajeRadio({
+          emisor: `CENTRAL 061 (${usuario.user.toUpperCase()})`,
+          canal: 'CANAL 1 - EMERGENCIAS',
+          texto: `Atención ${unidad.id}, servicio ${incActivo.numFicha}: ${incActivo.clasificacion}. Dirección: ${incActivo.direccion} (${incActivo.municipio}). Motivo: ${incActivo.notas}`
+        });
+      };
+
+      const finalizarServicio = async (inc) => {
+        const hora = new Date().toLocaleTimeString('es-ES');
+        for (const uId of (inc.recursosAsignados || [])) {
+          await actualizarUnidad(uId, { estado: 'DISPONIBLE', incidenteId: null });
+        }
+        await actualizarIncidente(inc.id, {
+          estado: 'FINALIZADO',
+          cronologia: [...(inc.cronologia || []), { hora, texto: `Servicio cerrado y unidades liberadas por ${usuario.nombre}` }]
+        });
+      };
+
+      return (
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex-1 flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+            <div>
+              <h2 className="font-bold text-base text-emerald-400">
+                <i className="fa-solid fa-truck-medical mr-2"></i>
+                Mesa de Coordinación y Despacho de Flota (061 SEM)
+              </h2>
+              <p className="text-xs text-slate-400">Asigna recursos móviles a los incidentes clasificados y coordina por emisora TETRA</p>
+            </div>
+            <span className="bg-emerald-950 border border-emerald-600 text-emerald-300 text-xs font-bold px-2.5 py-1 rounded">
+              {pendientes.length} Servicios Activos
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 flex-1">
+            {/* Lista de Incidentes Traspasados */}
+            <div className="md:col-span-5 space-y-2 overflow-y-auto max-h-[460px]">
+              <h3 className="text-xs font-bold uppercase text-slate-400">Bandeja de Servicios</h3>
+              {pendientes.length === 0 ? (
+                <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-4 text-xs text-slate-400 text-center">
+                  No hay fichas traspasadas pendientes de gestión.
+                </div>
+              ) : (
+                pendientes.map(inc => (
+                  <div
+                    key={inc.id}
+                    onClick={() => setSelectedId(inc.id)}
+                    className={`p-3 rounded-lg border cursor-pointer transition ${
+                      incActivo?.id === inc.id
+                        ? 'bg-slate-700 border-emerald-400 shadow-lg'
+                        : 'bg-slate-900 border-slate-700 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-mono font-bold text-xs text-amber-300">{inc.numFicha}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        inc.estado === 'TRASPASADO' ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-600 text-white'
+                      }`}>
+                        {inc.estado}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-white">{inc.clasificacion}</div>
+                    <div className="text-xs text-slate-300 mt-0.5">
+                      <i className="fa-solid fa-location-dot text-red-400 mr-1"></i>
+                      {inc.direccion} ({inc.municipio})
+                    </div>
+                    {inc.recursosAsignados?.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {inc.recursosAsignados.map(r => (
+                          <span key={r} className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Detalle del Incidente + Parrilla de Unidades */}
+            <div className="md:col-span-7 flex flex-col justify-between bg-slate-900/80 border border-slate-700 rounded-lg p-3 space-y-3">
+              {incActivo ? (
+                <>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-start border-b border-slate-700 pb-2">
+                      <div>
+                        <span className="text-amber-400 font-mono font-bold">{incActivo.numFicha}</span>
+                        <h4 className="font-bold text-sm text-white">{incActivo.tipoDemanda}</h4>
+                      </div>
+                      <button
+                        onClick={() => finalizarServicio(incActivo)}
+                        className="bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded text-xs font-bold"
+                      >
+                        Cerrar Servicio
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 bg-slate-800 p-2 rounded">
+                      <div><strong>Dirección:</strong> {incActivo.direccion}, {incActivo.municipio}</div>
+                      <div><strong>Teléfono:</strong> {incActivo.telefono}</div>
+                      <div><strong>Paciente:</strong> {incActivo.nombrePac || 'No filiado'} ({incActivo.edad || '?'} años, {incActivo.sexo})</div>
+                      <div><strong>Prioridad:</strong> <span className="text-red-400 font-bold">{incActivo.clasificacion}</span></div>
+                    </div>
+
+                    <div className="bg-slate-800 p-2 rounded">
+                      <strong>Notas e Interrogatorio:</strong>
+                      <p className="text-slate-300 mt-0.5">{incActivo.notas} {incActivo.interrogatorio && `| Triaje: ${incActivo.interrogatorio}`}</p>
+                    </div>
+                  </div>
+
+                  {/* Parrilla de Unidades Móviles */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-slate-400 mb-2">
+                      Flota de Recursos Disponibles (Clic para movilizar):
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {unidades.map(u => (
+                        <div
+                          key={u.id}
+                          className="bg-slate-800 border border-slate-700 rounded p-2 flex items-center justify-between"
+                        >
+                          <div>
+                            <div className="font-bold text-xs text-white">
+                              {u.id} <span className="text-cyan-400">({u.tipo})</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400">{u.base}</div>
+                          </div>
+
+                          {u.estado === 'DISPONIBLE' ? (
+                            <button
+                              onClick={() => asignarUnidad(u)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-2.5 py-1 rounded"
+                            >
+                              Movilizar
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-1 rounded bg-amber-900/70 text-amber-300 border border-amber-700">
+                              {u.estado}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-xs text-slate-500">
+                  Selecciona un servicio de la izquierda para despachar unidades.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 3C. CONSOLA DE UNIDAD MÓVIL (TABLET EMBARCADA + ESTATUS OPERATIVOS)
+    // =========================================================================
+    function ConsolaUnidadMovil({
+      usuario, incidentes, unidades, actualizarIncidente, actualizarUnidad, enviarMensajeRadio
+    }) {
+      const miUnidad = unidades.find(u => u.id === usuario.indicativo) || unidades[0];
+      const miServicio = incidentes.find(i => i.id === miUnidad?.incidenteId);
+
+      const cambiarEstatus = async (nuevoEstado, codigoTetra) => {
+        const hora = new Date().toLocaleTimeString('es-ES');
+        await actualizarUnidad(miUnidad.id, {
+          estado: nuevoEstado,
+          incidenteId: nuevoEstado === 'DISPONIBLE' ? null : miUnidad.incidenteId
+        });
+
+        if (miServicio) {
+          await actualizarIncidente(miServicio.id, {
+            cronologia: [
+              ...(miServicio.cronologia || []),
+              { hora, texto: `[${miUnidad.id}] Estatus cambiado a ${nuevoEstado} (${codigoTetra})` }
+            ]
+          });
+        }
+
+        await enviarMensajeRadio({
+          emisor: `UNIDAD ${miUnidad.id}`,
+          canal: 'CANAL 1 - EMERGENCIAS',
+          texto: `${miUnidad.id} informa estatus: ${nuevoEstado} (${codigoTetra}).`
+        });
+      };
+
+      return (
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex-1 flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+            <div>
+              <span className="text-xs font-bold text-cyan-400 uppercase">Terminal Embarcado Embarcación / Ambulancia</span>
+              <h2 className="text-xl font-black text-white">
+                Indicativo {miUnidad?.id} — {miUnidad?.tipo}
+              </h2>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-black bg-cyan-950 border border-cyan-500 text-cyan-300">
+              ESTATUS: {miUnidad?.estado}
+            </span>
+          </div>
+
+          {miServicio ? (
+            <div className="bg-slate-900 border-2 border-amber-500/70 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="bg-red-600 text-white text-xs font-black px-2.5 py-0.5 rounded">
+                  SERVICIO ASIGNADO: {miServicio.numFicha}
+                </span>
+                <span className="text-xs font-bold text-amber-300">{miServicio.clasificacion}</span>
+              </div>
+
+              <div className="text-base font-bold text-white">
+                <i className="fa-solid fa-location-dot text-red-500 mr-2"></i>
+                {miServicio.direccion} ({miServicio.municipio})
+              </div>
+
+              <p className="text-sm text-slate-300 bg-slate-800 p-3 rounded-lg">
+                {miServicio.notas}
+              </p>
+
+              <div className="text-xs text-slate-400">
+                <strong>Paciente:</strong> {miServicio.nombrePac || 'Sin filiar'} · <strong>Edad:</strong> {miServicio.edad || '?'} · <strong>Alertante:</strong> {miServicio.telefono}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-8 text-center text-slate-400">
+              <i className="fa-solid fa-truck-medical text-4xl mb-2 text-slate-600"></i>
+              <p className="text-sm font-semibold">Unidad operativa en base ({miUnidad?.base}). A la espera de activación por Central 061.</p>
+            </div>
+          )}
+
+          {/* Botonera de estados operativos estándar SEM */}
+          <div>
+            <h3 className="text-xs font-bold uppercase text-slate-400 mb-2">Pulsadores de Estatus Operativo:</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <button
+                onClick={() => cambiarEstatus('EN_CAMINO', 'QAP / En ruta al lugar')}
+                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2.5 px-2 rounded text-xs"
+              >
+                1. En Camino
+              </button>
+              <button
+                onClick={() => cambiarEstatus('EN_LUGAR', 'En el punto / Asistiendo')}
+                className="bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 px-2 rounded text-xs"
+              >
+                2. En el Lugar
+              </button>
+              <button
+                onClick={() => cambiarEstatus('TRASLADANDO', 'Traslado a Hospital')}
+                className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-2 rounded text-xs"
+              >
+                3. Trasladando
+              </button>
+              <button
+                onClick={() => cambiarEstatus('EN_HOSPITAL', 'Transferencia en Urgencias')}
+                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-2 rounded text-xs"
+              >
+                4. En Hospital
+              </button>
+              <button
+                onClick={() => cambiarEstatus('DISPONIBLE', 'QAP / Operativo Libre')}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-2 rounded text-xs"
+              >
+                5. Disponible
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 3D. PANEL DOCENTE DE EVALUACIÓN Y CRONOLOGÍA GLOBAL
+    // =========================================================================
+    function PanelDocenteEvaluacion({ incidentes, unidades, mensajesRadio }) {
+      return (
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex-1 space-y-4 overflow-y-auto max-h-[560px]">
+          <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+            <h2 className="font-bold text-base text-purple-400">
+              <i className="fa-solid fa-clipboard-check mr-2"></i>
+              Panel de Evaluación Docente — Trazabilidad de Tiempos
+            </h2>
+            <span className="text-xs text-slate-400">
+              Total incidentes: {incidentes.length} | Transmisiones radio: {mensajesRadio.length}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {incidentes.map(inc => (
+              <div key={inc.id} className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs space-y-2">
+                <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-1.5">
+                  <div>
+                    <span className="font-mono font-bold text-amber-400 mr-2">{inc.numFicha}</span>
+                    <strong className="text-white">{inc.direccion} ({inc.municipio})</strong>
+                  </div>
+                  <span className="bg-slate-800 px-2 py-0.5 rounded font-bold text-emerald-400">
+                    Estado: {inc.estado}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-slate-300">
+                  <div><strong>Operador Demanda:</strong> {inc.operadorDemanda || 'Pendiente'}</div>
+                  <div><strong>Gestor Respuesta:</strong> {inc.gestorRespuesta || 'Pendiente'}</div>
+                  <div><strong>Recursos:</strong> {(inc.recursosAsignados || []).join(', ') || 'Ninguno'}</div>
+                </div>
+
+                <div className="bg-slate-950 p-2 rounded space-y-1">
+                  <div className="font-bold text-slate-400 uppercase text-[10px]">Cronología auditada:</div>
+                  {(inc.cronologia || []).map((ev, idx) => (
+                    <div key={idx} className="text-slate-300">
+                      <span className="font-mono text-cyan-400 mr-2">[{ev.hora}]</span>
+                      {ev.texto}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 4. EMISORA TETRA / WALKIE-TALKIE CON AUDIO REAL PTT Y MENSAJERÍA
+    // =========================================================================
+    function WalkieTalkieTETRA({ usuario, mensajesRadio, enviarMensajeRadio }) {
+      const [canal, setCanal] = useState('CANAL 1 - EMERGENCIAS');
+      const [textoRadio, setTextoRadio] = useState('');
+      const [grabando, setGrabando] = useState(false);
+      const mediaRecorderRef = useRef(null);
+      const chunksRef = useRef([]);
+      const chatEndRef = useRef(null);
+
+      useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [mensajesRadio.length]);
+
+      const iniciarPTT = async () => {
+        playTone('ptt_in');
+        setGrabando(true);
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mr = new MediaRecorder(stream);
+          chunksRef.current = [];
+          mr.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksRef.current.push(e.data);
+          };
+          mr.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              await enviarMensajeRadio({
+                emisor: usuario.indicativo ? `UNIDAD ${usuario.indicativo}` : usuario.user.toUpperCase(),
+                canal,
+                texto: '🎙️ Transmisión de voz PTT',
+                audioBase64: reader.result
+              });
+            };
+            reader.readAsDataURL(blob);
+          };
+          mediaRecorderRef.current = mr;
+          mr.start();
+        } catch (err) {
+          // Si no hay micrófono disponible, permite igualmente usar el PTT por texto
+          console.warn('Micrófono no disponible o sin permiso:', err);
+        }
+      };
+
+      const soltarPTT = () => {
+        if (!grabando) return;
+        playTone('ptt_out');
+        setGrabando(false);
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      };
+
+      const enviarTextoRadio = async (e) => {
+        e.preventDefault();
+        if (!textoRadio.trim()) return;
+        playTone('ptt_out');
+        await enviarMensajeRadio({
+          emisor: usuario.indicativo ? `UNIDAD ${usuario.indicativo}` : usuario.user.toUpperCase(),
+          canal,
+          texto: textoRadio.trim()
+        });
+        setTextoRadio('');
+      };
+
+      const mensajesFiltrados = mensajesRadio.filter(m => m.canal === canal);
+
+      return (
+        <div className="bg-slate-950 border-2 border-slate-700 rounded-2xl p-3 flex flex-col flex-1 shadow-2xl">
+          {/* Cabecera Terminal TETRA */}
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${grabando ? 'bg-red-500 animate-ping' : 'bg-emerald-500'}`}></div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Red RESCAT / TETRA</div>
+                <div className="text-xs font-black text-emerald-400">EMISORA WALKIE-TALKIE</div>
+              </div>
+            </div>
+            <select
+              value={canal}
+              onChange={e => setCanal(e.target.value)}
+              className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-[11px] font-bold text-amber-300"
+            >
+              <option value="CANAL 1 - EMERGENCIAS">CH-01 EMERGENCIAS</option>
+              <option value="CANAL 2 - COORDINACIÓN">CH-02 COORDINACIÓN</option>
+              <option value="CANAL 3 - IMV / TÁCTICO">CH-03 TÁCTICO</option>
+            </select>
+          </div>
+
+          {/* Pantalla LCD de mensajes de radio */}
+          <div className="flex-1 bg-[#142318] border-2 border-slate-700 rounded-xl p-2.5 overflow-y-auto max-h-[310px] space-y-2 font-mono text-xs">
+            {mensajesFiltrados.length === 0 ? (
+              <div className="text-emerald-600/70 text-center py-8 text-[11px]">
+                -- SIN TRÁFICO EN {canal} --<br />
+                Mantén pulsado PTT para hablar o escribe abajo
+              </div>
+            ) : (
+              mensajesFiltrados.map(m => (
+                <div key={m.id} className="bg-black/40 border border-emerald-900/60 rounded p-2">
+                  <div className="flex justify-between text-[10px] text-emerald-400 font-bold mb-0.5">
+                    <span>{m.emisor}</span>
+                    <span>{m.hora}</span>
+                  </div>
+                  <div className="text-emerald-100">{m.texto}</div>
+                  {m.audioBase64 && (
+                    <audio controls src={m.audioBase64} className="w-full h-7 mt-1.5" />
+                  )}
+                </div>
+              ))
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Botón gigante PTT (Push-To-Talk) */}
+          <div className="mt-3 space-y-2">
+            <button
+              type="button"
+              onMouseDown={iniciarPTT}
+              onMouseUp={soltarPTT}
+              onMouseLeave={soltarPTT}
+              onTouchStart={iniciarPTT}
+              onTouchEnd={soltarPTT}
+              className={`w-full py-3.5 rounded-xl font-black text-sm tracking-wider uppercase transition flex items-center justify-center gap-2 shadow-lg ${
+                grabando
+                  ? 'bg-red-600 text-white ring-4 ring-red-500/40 scale-[0.99]'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+              }`}
+            >
+              <i className="fa-solid fa-microphone-lines text-lg"></i>
+              {grabando ? 'TRANSMITIENDO... SUELTA PARA ENVIAR' : 'MANTENER PULSADO (PTT VOZ)'}
+            </button>
+
+            <form onSubmit={enviarTextoRadio} className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="Mensaje rápido radio / QAP..."
+                value={textoRadio}
+                onChange={e => setTextoRadio(e.target.value)}
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+              />
+              <button
+                type="submit"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+              >
+                Enviar
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 5. MODAL DE CONFIGURACIÓN DE RED DEL AULA (FIREBASE + ENLACE MÁGICO)
+    // =========================================================================
+    function ModalConfigRed({ firebaseConfig, netStatus, onSave, onClose }) {
+      const [rawText, setRawText] = useState(
+        firebaseConfig ? JSON.stringify(firebaseConfig, null, 2) : ''
+      );
+
+      const magicLink = useMemo(() => {
+        if (!firebaseConfig) return '';
+        const base = window.location.origin + window.location.pathname;
+        return `${base}?cfg=${btoa(JSON.stringify(firebaseConfig))}`;
+      }, [firebaseConfig]);
+
+      const procesarYGuardar = () => {
+        if (!rawText.trim()) {
+          onSave(null);
+          return;
+        }
+        try {
+          // Extraer objeto JSON aunque peguen todo el bloque `const firebaseConfig = { ... };`
+          const match = rawText.match(/\{[\s\S]*\}/);
+          if (!match) throw new Error('No se encontró objeto de configuración');
+          // Convertir claves sin comillas de JS a JSON válido
+          const jsonStr = match[0]
+            .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+            .replace(/'/g, '"')
+            .replace(/,\s*}/g, '}');
+          const parsed = JSON.parse(jsonStr);
+          if (!parsed.apiKey || !parsed.projectId) {
+            throw new Error('Faltan campos apiKey o projectId');
+          }
+          onSave(parsed);
+        } catch (e) {
+          alert('No se pudo leer la configuración de Firebase. Asegúrate de pegar el bloque const firebaseConfig = { ... } completo.');
+        }
+      };
+
+      const copiarEnlace = () => {
+        navigator.clipboard.writeText(magicLink);
+        alert('¡Enlace Mágico copiado! Compártelo con tus alumnos para que entren conectados automáticamente.');
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 border border-slate-600 rounded-xl max-w-xl w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+              <h3 className="font-bold text-base text-white">
+                <i className="fa-solid fa-network-wired text-emerald-400 mr-2"></i>
+                Configuración de Red del Aula (Firebase)
+              </h3>
+              <button onClick={onClose} className="text-slate-400 hover:text-white">
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Pega aquí el bloque <code className="bg-slate-900 px-1.5 py-0.5 rounded text-amber-300">firebaseConfig</code> de tu proyecto gratuito de Firebase para sincronizar todos los ordenadores del aula en tiempo real:
+            </p>
+
+            <textarea
+              rows="6"
+              placeholder={'const firebaseConfig = {\n  apiKey: "AIzaSy...",\n  authDomain: "tu-proyecto.firebaseapp.com",\n  projectId: "tu-proyecto",\n  ...\n};'}
+              value={rawText}
+              onChange={e => setRawText(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 font-mono text-xs text-emerald-300"
+            ></textarea>
+
+            {magicLink && (
+              <div className="bg-emerald-950/60 border border-emerald-600 rounded-lg p-3 space-y-1.5">
+                <div className="text-xs font-bold text-emerald-300">
+                  Enlace Mágico para alumnos (ya incluye la conexión):
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={magicLink}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono text-slate-300"
+                  />
+                  <button
+                    onClick={copiarEnlace}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-xs font-bold"
+                  >
+                    Copiar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between pt-2">
+              <button
+                onClick={() => onSave(null)}
+                className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded text-xs font-bold"
+              >
+                Usar Modo Local (1 PC)
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={onClose}
+                  className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={procesarYGuardar}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-xs font-bold"
+                >
+                  Guardar y Conectar Aula
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
