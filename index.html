@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulador CECOS CAT112 / 061 SEM — Consola CAD & Red RESCAT</title>
+  <title>Simulador CECOS CAT112 / 061 SEM — Consola CAD, Embarcat Altech & RESCAT</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   
@@ -43,6 +43,16 @@
     .tetra-lcd {
       background: linear-gradient(180deg, #1b3624 0%, #112418 100%);
       box-shadow: inset 0 2px 10px rgba(0,0,0,0.85);
+    }
+    .altech-bezel {
+      background: linear-gradient(145deg, #e2e8f0 0%, #cbd5e1 100%);
+      border: 4px solid #94a3b8;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.7), inset 0 2px 4px rgba(255,255,255,0.8);
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-ficha, #printable-ficha * { visibility: visible; }
+      #printable-ficha { position: absolute; left: 0; top: 0; width: 100%; background: white; color: black; }
     }
   </style>
 </head>
@@ -222,7 +232,7 @@
     };
 
     // =========================================================================
-    // DATOS MAESTROS DEL AULA Y FLOTA SEM CATALUNYA
+    // DATOS MAESTROS DEL AULA, DIRECTORIO SANITARIO Y FLOTA SEM CATALUNYA
     // =========================================================================
     const USUARIOS_AULA = [
       { user: 'profe', pass: '112', nombre: 'Docente Teleemergencias', rol: 'DOCENTE', puesto: 'Supervisión / Evaluación', issi: '214001' },
@@ -231,7 +241,7 @@
       { user: 'demanda3', pass: '112', nombre: 'Operador Demanda 03 (061)', rol: 'DEMANDA', puesto: 'Consola Recepción 061', issi: '214013' },
       { user: 'respuesta1', pass: '061', nombre: 'Gestor Respuesta 01 (061 SEM)', rol: 'RESPUESTA', puesto: 'Mesa Coordinación Flota', issi: '214021' },
       { user: 'respuesta2', pass: '061', nombre: 'Gestor Respuesta 02 (061 SEM)', rol: 'RESPUESTA', puesto: 'Mesa Coordinación Flota', issi: '214022' },
-      { user: 'unidad1', pass: 'sem', nombre: 'Indicativo B-412 (SVB Eixample)', rol: 'UNIDAD', indicativo: 'B-412', puesto: 'Dotación SVB', issi: '214412' },
+      { user: 'unidad1', pass: 'sem', nombre: 'Indicativo YI12 (SVB Sants-Eixample)', rol: 'UNIDAD', indicativo: 'YI12', puesto: 'Dotación SVB', issi: '214412' },
       { user: 'unidad2', pass: 'sem', nombre: 'Indicativo A-108 (SVA Clínic)', rol: 'UNIDAD', indicativo: 'A-108', puesto: 'Dotación SVA', issi: '214108' },
       { user: 'unidad3', pass: 'sem', nombre: 'Indicativo B-519 (SVB Bellvitge)', rol: 'UNIDAD', indicativo: 'B-519', puesto: 'Dotación SVB', issi: '214519' },
       { user: 'unidad4', pass: 'sem', nombre: 'Indicativo V-02 (VIR Sant Pau)', rol: 'UNIDAD', indicativo: 'V-02', puesto: 'Vehículo Intervención Rápida', issi: '214002' },
@@ -239,11 +249,20 @@
     ];
 
     const UNIDADES_INICIALES = [
-      { id: 'B-412', tipo: 'SVB', base: 'Base Eixample (BCN)', estado: 'DISPONIBLE', incidenteId: null, lat: 41.3888, lng: 2.1619 },
+      { id: 'YI12',  tipo: 'SVB', base: 'Carrer d\'Enric Bargés 9/16 (BCN)', estado: 'DISPONIBLE', incidenteId: null, lat: 41.3812, lng: 2.1422 },
       { id: 'A-108', tipo: 'SVA (UME)', base: 'Base H. Clínic (BCN)', estado: 'DISPONIBLE', incidenteId: null, lat: 41.3892, lng: 2.1515 },
       { id: 'B-519', tipo: 'SVB', base: 'Base Bellvitge (L\'H)', estado: 'DISPONIBLE', incidenteId: null, lat: 41.3456, lng: 2.1048 },
       { id: 'V-02',  tipo: 'VIR', base: 'Base H. Sant Pau (BCN)', estado: 'DISPONIBLE', incidenteId: null, lat: 41.4116, lng: 2.1744 },
       { id: 'H-01',  tipo: 'HEMS', base: 'Helipuerto Sabadell', estado: 'DISPONIBLE', incidenteId: null, lat: 41.5209, lng: 2.1050 }
+    ];
+
+    const DIRECTORIO_CENTROS = [
+      { nombre: 'Hospital Clínic de Barcelona', tipo: 'Hospital Nivel III (Código IAM/ICTUS)', municipio: 'Barcelona', direccion: 'Carrer de Villarroel, 170', tel: '932275400', lat: 41.3892, lng: 2.1515 },
+      { nombre: 'Hospital Universitari de Bellvitge', tipo: 'Hospital Nivel III (Politrauma)', municipio: 'L\'Hospitalet de Llobregat', direccion: 'Carrer de la Feixa Llarga, s/n', tel: '932607500', lat: 41.3456, lng: 2.1048 },
+      { nombre: 'Hospital de la Santa Creu i Sant Pau', tipo: 'Hospital Nivel III', municipio: 'Barcelona', direccion: 'Carrer de Sant Quintí, 89', tel: '932919000', lat: 41.4116, lng: 2.1744 },
+      { nombre: 'Hospital Universitari Vall d\'Hebron', tipo: 'Hospital Nivel III (Trauma/Quemados)', municipio: 'Barcelona', direccion: 'Passeig de la Vall d\'Hebron, 119', tel: '934893000', lat: 41.4275, lng: 2.1419 },
+      { nombre: 'CUAP Manso (Urgències Atenció Primària)', tipo: 'CUAP 24h', municipio: 'Barcelona', direccion: 'Carrer de Manso, 19', tel: '934430500', lat: 41.3768, lng: 2.1602 },
+      { nombre: 'Comissaria Mossos d\'Esquadra Eixample', tipo: 'Seguretat Ciutadana', municipio: 'Barcelona', direccion: 'Plaça d\'Espanya, 1', tel: '933062300', lat: 41.3751, lng: 2.1491 }
     ];
 
     const TIPOS_DEMANDA = [
@@ -272,6 +291,14 @@
       'No dar de comer ni beber. Mantener en reposo absoluto sentado/semisentado.',
       'Comprimir punto sangrante con gasas o paño limpio sin retirar apósitos.',
       'No mover al herido salvo peligro inminente de incendio o atropello.'
+    ];
+
+    const ACCIONES_HACER_SALA = [
+      'Traspasar inmediato a Mesa de Respuesta 061 SEM para movilización SVA/SVB.',
+      'Activar Código IAM (Infarto Agudo de Miocardio) y preavisar hospital de destino.',
+      'Activar Código PCR y solicitar apoyo Policia Local / Mossos con DEA cercano.',
+      'Activar Código PPT (Politrauma) y coordinar con Bombers / Trànsit.',
+      'Transferir llamada a Médico Coordinador 061 para teleasistencia RCP.'
     ];
 
     const CASOS_PRACTICOS_ALERTANTE = [
@@ -341,13 +368,14 @@
     ];
 
     // =========================================================================
-    // COMPONENTE REUTILIZABLE: VISOR MAPA GIS TÁCTICO (LEAFLET)
+    // COMPONENTE REUTILIZABLE: VISOR MAPA GIS TÁCTICO CON RUTAS REALES OSRM
     // =========================================================================
     function MapaGIS({
       incidente,
       unidades = [],
       coordenadasSeleccionadas,
       onSeleccionarPunto,
+      rutaPolilinea = null,
       altura = 'h-64'
     }) {
       const mapContainerRef = useRef(null);
@@ -393,6 +421,22 @@
 
         group.clearLayers();
 
+        // Dibujar ruta real si existe
+        if (rutaPolilinea && rutaPolilinea.length > 1) {
+          const poly = window.L.polyline(rutaPolilinea, {
+            color: '#2563eb',
+            weight: 6,
+            opacity: 0.9
+          }).addTo(group);
+          window.L.polyline(rutaPolilinea, {
+            color: '#ffffff',
+            weight: 2,
+            dashArray: '8, 8',
+            opacity: 0.95
+          }).addTo(group);
+          map.fitBounds(poly.getBounds(), { padding: [30, 30] });
+        }
+
         const targetLat = incidente?.lat || coordenadasSeleccionadas?.lat;
         const targetLng = incidente?.lng || coordenadasSeleccionadas?.lng;
         const precision = incidente?.precision || coordenadasSeleccionadas?.precision || 15;
@@ -416,7 +460,9 @@
             .bindPopup(`<strong>${incidente?.numFicha || 'Ubicación Alertante'}</strong><br/>${incidente?.direccion || 'Punto AML'}<br/>Precisión AML: ±${precision}m`)
             .addTo(group);
 
-          map.setView([targetLat, targetLng], 15);
+          if (!rutaPolilinea) {
+            map.setView([targetLat, targetLng], 15);
+          }
         }
 
         unidades.forEach(u => {
@@ -432,7 +478,7 @@
             .bindPopup(`<strong>${u.id} (${u.tipo})</strong><br/>Estado: ${u.estado}<br/>${u.base}`)
             .addTo(group);
         });
-      }, [incidente, unidades, coordenadasSeleccionadas]);
+      }, [incidente, unidades, coordenadasSeleccionadas, rutaPolilinea]);
 
       return (
         <div className={`w-full ${altura} rounded-lg overflow-hidden border border-slate-700 relative`}>
@@ -551,7 +597,7 @@
             </label>
           </div>
 
-          <div className={`bg-slate-950 rounded-lg p-2 ${compacto ? 'max-h-28' : 'max-h-40'} overflow-y-auto cad-scroll space-y-1.5 text-xs`}>
+          <div className={`bg-slate-950 rounded-lg p-2 ${compacto ? 'max-h-24' : 'max-h-40'} overflow-y-auto cad-scroll space-y-1.5 text-xs`}>
             {mensajes.length === 0 ? (
               <div className="text-slate-500 text-center py-2 text-[11px]">
                 Línea abierta. Mantén pulsado el botón azul para hablar con el alertante.
@@ -789,8 +835,10 @@
           clasificacion: '',
           agenciasNotificadas: ['061 SEM'],
           consejoAlertante: '',
+          hacerSala: '',
           recursosAsignados: [],
           mensajesLlamada: [],
+          constantesVitales5G: null,
           cronologia: [
             {
               hora: now.toLocaleTimeString('es-ES'),
@@ -819,6 +867,17 @@
           await updateDoc(doc(dbInstance, 'cecos_incidentes', id), cambios);
         } else {
           const lista = incidentes.map(inc => inc.id === id ? { ...inc, ...cambios } : inc);
+          setIncidentes(lista);
+          localStorage.setItem('cecos_local_inc', JSON.stringify(lista));
+        }
+      };
+
+      const eliminarIncidente = async (id) => {
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { doc, deleteDoc } = window.FirebaseSDK;
+          await deleteDoc(doc(dbInstance, 'cecos_incidentes', id));
+        } else {
+          const lista = incidentes.filter(inc => inc.id !== id);
           setIncidentes(lista);
           localStorage.setItem('cecos_local_inc', JSON.stringify(lista));
         }
@@ -886,9 +945,9 @@
               </div>
               <div>
                 <h1 className="font-bold text-sm md:text-base text-white leading-tight">
-                  SIMULADOR CECOS — TELEEMERGENCIAS CAD & RESCAT
+                  SIMULADOR CECOS — TELEEMERGENCIAS CAD, EMBARCAT SEM & RESCAT
                 </h1>
-                <p className="text-[11px] text-slate-400">CFGM Emergencias Sanitarias · Sistema Despacho GEMMA/SITREM + AML + TETRA</p>
+                <p className="text-[11px] text-slate-400">CFGM Emergències Sanitàries · Sistema Despatx + Terminal Embarcat Altech 5G + Xarxa TETRA</p>
               </div>
             </div>
 
@@ -914,7 +973,7 @@
                 }`}
               >
                 <i className="fa-solid fa-headset"></i>
-                Consola Sala CECOS
+                Consola Sala CECOS / Embarcat
                 {llamadasEntrantes > 0 && (
                   <span className="ml-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-bounce">
                     {llamadasEntrantes}
@@ -961,6 +1020,7 @@
                 estadoCanalesTetra={estadoCanalesTetra}
                 actualizarCanalTetra={actualizarCanalTetra}
                 actualizarIncidente={actualizarIncidente}
+                eliminarIncidente={eliminarIncidente}
                 actualizarUnidad={actualizarUnidad}
                 enviarMensajeRadio={enviarMensajeRadio}
                 reiniciarSimulacion={reiniciarSimulacion}
@@ -1134,6 +1194,7 @@
         const inc = await crearIncidente({
           linea: linea || '112',
           telefono,
+          telefonoPaciente: '',
           alertante: modoInterrogatorioReal ? '' : (alertante || 'Alertante'),
           municipio,
           poblacion,
@@ -1516,7 +1577,7 @@
     }
 
     // =========================================================================
-    // 2. PANTALLA DE LOGIN DE SALA CECOS
+    // 2. PANTALLA DE LOGIN DE SALA CECOS / TERMINAL EMBARCADO
     // =========================================================================
     function LoginCECOS({ onLogin }) {
       const [userInput, setUserInput] = useState('');
@@ -1547,11 +1608,11 @@
             <div className="flex flex-col justify-between">
               <div>
                 <div className="inline-block bg-blue-600/20 text-blue-400 border border-blue-500/40 text-xs font-bold px-2.5 py-1 rounded mb-3">
-                  ACCESO RESTRINGIDO · OPERADORES CECOS
+                  ACCESO OPERADORES CECOS & TERMINALES EMBARCADOS
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">Identificación de Puesto</h2>
                 <p className="text-sm text-slate-400 mb-5">
-                  Introduce las credenciales asignadas para entrar en tu consola de Teleemergencias.
+                  Introduce las credenciales asignadas para entrar en tu consola de sala o en la tablet embarcada de ambulancia.
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -1582,7 +1643,7 @@
                     type="submit"
                     className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg transition"
                   >
-                    Iniciar Turno en Sala
+                    Iniciar Turno
                   </button>
                 </form>
               </div>
@@ -1602,7 +1663,7 @@
                   <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded">061</span>
                 </div>
                 <div onClick={() => autocompletar('unidad1', 'sem')} className="cursor-pointer hover:bg-slate-800 p-2 rounded bg-slate-900 flex justify-between items-center">
-                  <span><strong className="text-cyan-400">Unidades (Walkie):</strong> unidad1 ... unidad5</span>
+                  <span><strong className="text-yellow-400">Terminal Embarcado SEM:</strong> unidad1 (YI12) ... unidad5</span>
                   <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded">sem</span>
                 </div>
                 <div onClick={() => autocompletar('profe', '112')} className="cursor-pointer hover:bg-slate-800 p-2 rounded bg-slate-900 flex justify-between items-center">
@@ -1617,12 +1678,12 @@
     }
 
     // =========================================================================
-    // 3. SALA DE COORDINACIÓN CECOS
+    // 3. SALA DE COORDINACIÓN CECOS + EMBARCAT
     // =========================================================================
     function SalaCECOS({
       usuario, onLogout, incidentes, unidades, mensajesRadio,
       estadoCanalesTetra, actualizarCanalTetra,
-      actualizarIncidente, actualizarUnidad, enviarMensajeRadio, reiniciarSimulacion
+      actualizarIncidente, eliminarIncidente, actualizarUnidad, enviarMensajeRadio, reiniciarSimulacion
     }) {
       const [tabActiva, setTabActiva] = useState(usuario.rol === 'DOCENTE' ? 'DEMANDA' : usuario.rol);
 
@@ -1649,6 +1710,12 @@
                     className={`px-2.5 py-1 rounded font-bold ${tabActiva === 'RESPUESTA' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}
                   >
                     Consola Respuesta
+                  </button>
+                  <button
+                    onClick={() => setTabActiva('UNIDAD')}
+                    className={`px-2.5 py-1 rounded font-bold ${tabActiva === 'UNIDAD' ? 'bg-yellow-500 text-black' : 'bg-slate-800 text-slate-300'}`}
+                  >
+                    Embarcat SEM (YI12)
                   </button>
                   <button
                     onClick={() => setTabActiva('DOCENTE')}
@@ -1682,6 +1749,7 @@
                   incidentes={incidentes}
                   unidades={unidades}
                   actualizarIncidente={actualizarIncidente}
+                  eliminarIncidente={eliminarIncidente}
                 />
               )}
               {tabActiva === 'RESPUESTA' && (
@@ -1695,7 +1763,7 @@
                 />
               )}
               {tabActiva === 'UNIDAD' && (
-                <ConsolaUnidadMovil
+                <ConsolaUnidadMovilAltech
                   usuario={usuario}
                   incidentes={incidentes}
                   unidades={unidades}
@@ -1728,14 +1796,16 @@
     }
 
     // =========================================================================
-    // 3A. CONSOLA CAD PROFESIONAL GESTOR DE DEMANDA (GEMMA / SITREM CAT112)
+    // 3A. CONSOLA CAD AMPLIADA GESTOR DE DEMANDA (IMAGEN 2 + IMAGEN 3)
     // =========================================================================
-    function ConsolaGestorDemanda({ usuario, incidentes, unidades, actualizarIncidente }) {
+    function ConsolaGestorDemanda({ usuario, incidentes, unidades, actualizarIncidente, eliminarIncidente }) {
       const [selectedId, setSelectedId] = useState(null);
       const [estadoAgente, setEstadoAgente] = useState('DISPONIBLE');
       const [segundosAtencion, setSegundosAtencion] = useState(0);
+      const [showDirectorio, setShowDirectorio] = useState(false);
+      const [showModalRevision, setShowModalRevision] = useState(false);
+      const [busquedaDirectorio, setBusquedaDirectorio] = useState('');
 
-      // Triaje estructurado ABC rápido
       const [triajeABC, setTriajeABC] = useState({
         consciencia: '',
         respiracion: '',
@@ -1744,20 +1814,24 @@
 
       const [form, setForm] = useState({
         telefono: '',
+        telefonoPaciente: '',
         alertante: '',
         poblacion: '',
+        parroquia: '',
         municipio: '',
         direccion: '',
         notas: '',
         nombrePac: '',
         edad: '',
+        anioNac: '',
         sexo: 'H',
         nss: '',
         tipoDemanda: TIPOS_DEMANDA[0],
         interrogatorio: '',
         clasificacion: CLASIFICACIONES[1].code,
         agenciasNotificadas: ['061 SEM'],
-        consejoAlertante: CONSEJOS_PREARRIVO[0]
+        consejoAlertante: CONSEJOS_PREARRIVO[0],
+        hacerSala: ACCIONES_HACER_SALA[0]
       });
 
       const dirInputRef = useRef(null);
@@ -1766,8 +1840,8 @@
       const entrantes = incidentes.filter(i => i.estado === 'LLAMADA_ENTRANTE');
       const enCurso = incidentes.filter(i => i.estado === 'EN_ATENCION');
       const incidenteActivo = incidentes.find(i => i.id === selectedId);
+      const idxActual = incidentes.findIndex(i => i.id === selectedId);
 
-      // Cronómetro SLA de atención de llamada
       useEffect(() => {
         if (!incidenteActivo || incidenteActivo.estado !== 'EN_ATENCION') {
           setSegundosAtencion(0);
@@ -1779,22 +1853,27 @@
 
       useEffect(() => {
         if (incidenteActivo) {
+          const calcAnio = incidenteActivo.edad ? String(2026 - parseInt(incidenteActivo.edad || 0)) : '';
           setForm({
             telefono: incidenteActivo.telefono || '',
+            telefonoPaciente: incidenteActivo.telefonoPaciente || '',
             alertante: incidenteActivo.alertante || '',
             poblacion: incidenteActivo.poblacion || '',
+            parroquia: incidenteActivo.parroquia || '',
             municipio: incidenteActivo.municipio || '',
             direccion: incidenteActivo.direccion || '',
             notas: incidenteActivo.notas || '',
             nombrePac: incidenteActivo.nombrePac || '',
             edad: incidenteActivo.edad || '',
+            anioNac: incidenteActivo.anioNac || calcAnio,
             sexo: incidenteActivo.sexo || 'H',
             nss: incidenteActivo.nss || '',
             tipoDemanda: incidenteActivo.tipoDemanda || TIPOS_DEMANDA[0],
             interrogatorio: incidenteActivo.interrogatorio || '',
             clasificacion: incidenteActivo.clasificacion || CLASIFICACIONES[1].code,
             agenciasNotificadas: incidenteActivo.agenciasNotificadas || ['061 SEM'],
-            consejoAlertante: incidenteActivo.consejoAlertante || CONSEJOS_PREARRIVO[0]
+            consejoAlertante: incidenteActivo.consejoAlertante || CONSEJOS_PREARRIVO[0],
+            hacerSala: incidenteActivo.hacerSala || ACCIONES_HACER_SALA[0]
           });
           setTriajeABC({ consciencia: '', respiracion: '', signos: [] });
           if (incidenteActivo.estado === 'EN_ATENCION') {
@@ -1805,7 +1884,6 @@
         }
       }, [selectedId]);
 
-      // Atajos de teclado reales de sala CAD (F2 descolgar, Alt+D dirección, Alt+C prioridad, Alt+T traspasar)
       useEffect(() => {
         const handleKeyDown = (e) => {
           if (e.key === 'F2') {
@@ -1814,9 +1892,15 @@
           } else if (e.altKey && e.key.toLowerCase() === 'd') {
             e.preventDefault();
             dirInputRef.current?.focus();
+          } else if (e.altKey && e.key.toLowerCase() === 'r') {
+            e.preventDefault();
+            setShowDirectorio(prev => !prev);
           } else if (e.altKey && e.key.toLowerCase() === 'c') {
             e.preventDefault();
             clasifSelectRef.current?.focus();
+          } else if (e.altKey && e.key.toLowerCase() === 'v') {
+            e.preventDefault();
+            if (incidenteActivo) setShowModalRevision(true);
           } else if (e.altKey && e.key.toLowerCase() === 't') {
             e.preventDefault();
             if (incidenteActivo) traspasarARespuesta();
@@ -1825,6 +1909,18 @@
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
       });
+
+      const handleEdadChange = (val) => {
+        const num = parseInt(val, 10);
+        const anio = !isNaN(num) && num > 0 && num < 120 ? String(2026 - num) : '';
+        setForm(prev => ({ ...prev, edad: val, anioNac: anio }));
+      };
+
+      const handleAnioChange = (val) => {
+        const num = parseInt(val, 10);
+        const ed = !isNaN(num) && num > 1900 && num <= 2026 ? String(2026 - num) : '';
+        setForm(prev => ({ ...prev, anioNac: val, edad: ed }));
+      };
 
       const aplicarBotonTriaje = (campo, valor) => {
         const nextTriaje = { ...triajeABC };
@@ -1839,7 +1935,6 @@
         }
         setTriajeABC(nextTriaje);
 
-        // Construir línea clínica estructurada automática
         const partes = [];
         if (nextTriaje.consciencia) partes.push(`Consciencia: ${nextTriaje.consciencia}`);
         if (nextTriaje.respiracion) partes.push(`Respiración: ${nextTriaje.respiracion}`);
@@ -1847,22 +1942,25 @@
 
         const resumenABC = `[VALORACIÓN ABC] ${partes.join(' | ')}`;
 
-        // Sugerencia automática de prioridad y consejo según protocolo
         let nuevaClasif = form.clasificacion;
         let nuevoConsejo = form.consejoAlertante;
+        let nuevoHacer = form.hacerSala;
         let nuevoTipo = form.tipoDemanda;
 
         if (nextTriaje.respiracion === 'No respira / Gasping (PCR)') {
           nuevaClasif = CLASIFICACIONES[0].code;
           nuevoTipo = '03 - Parada Cardiorrespiratoria (PCR)';
           nuevoConsejo = CONSEJOS_PREARRIVO[1];
+          nuevoHacer = ACCIONES_HACER_SALA[2];
         } else if (nextTriaje.consciencia === 'Inconsciente') {
           nuevaClasif = CLASIFICACIONES[0].code;
           nuevoConsejo = CONSEJOS_PREARRIVO[2];
+          nuevoHacer = ACCIONES_HACER_SALA[0];
         } else if (nextTriaje.signos.includes('Dolor torácico')) {
           nuevaClasif = CLASIFICACIONES[0].code;
           nuevoTipo = '04 - Dolor torácico / Sospecha SCA';
           nuevoConsejo = CONSEJOS_PREARRIVO[3];
+          nuevoHacer = ACCIONES_HACER_SALA[1];
         }
 
         setForm(prev => ({
@@ -1870,6 +1968,7 @@
           clasificacion: nuevaClasif,
           tipoDemanda: nuevoTipo,
           consejoAlertante: nuevoConsejo,
+          hacerSala: nuevoHacer,
           interrogatorio: resumenABC
         }));
       };
@@ -1906,6 +2005,13 @@
         }
       };
 
+      const descartarPrueba = async () => {
+        if (!incidenteActivo) return;
+        if (!confirm(`¿Descartar ficha ${incidenteActivo.numFicha} como llamada de prueba o falsa alarma?`)) return;
+        await eliminarIncidente(incidenteActivo.id);
+        setSelectedId(null);
+      };
+
       const guardarCambiosFicha = async () => {
         if (!incidenteActivo) return;
         await actualizarIncidente(incidenteActivo.id, { ...form });
@@ -1928,7 +2034,7 @@
             ...(incidenteActivo.cronologia || []),
             {
               hora,
-              texto: `Ficha clasificada (${form.clasificacion}) | Agencias: ${form.agenciasNotificadas.join(', ')} | Traspasada a Coordinación 061 por ${usuario.nombre} (Tiempo atención: ${segundosAtencion}s)`
+              texto: `Ficha clasificada (${form.clasificacion}) | Agencias: ${form.agenciasNotificadas.join(', ')} | Acción: ${form.hacerSala} | Traspasada por ${usuario.nombre}`
             }
           ]
         });
@@ -1943,6 +2049,14 @@
         });
       };
 
+      const navegarRegistro = (dir) => {
+        if (incidentes.length === 0) return;
+        if (dir === 'FIRST') setSelectedId(incidentes[0].id);
+        if (dir === 'LAST') setSelectedId(incidentes[incidentes.length - 1].id);
+        if (dir === 'PREV') setSelectedId(incidentes[Math.max(0, idxActual - 1)].id);
+        if (dir === 'NEXT') setSelectedId(incidentes[Math.min(incidentes.length - 1, idxActual + 1)].id);
+      };
+
       const formatSLA = (sec) => {
         const m = String(Math.floor(sec / 60)).padStart(2, '0');
         const s = String(sec % 60).padStart(2, '0');
@@ -1950,10 +2064,10 @@
       };
 
       return (
-        <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col flex-1 shadow-2xl text-xs">
-          {/* BARRA SUPERIOR SOFTPHONE ACD / CENTRALITA TELEFÓNICA DE SALA */}
+        <div id="printable-ficha" className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden flex flex-col flex-1 shadow-2xl text-xs">
+          {/* BARRA SUPERIOR SOFTPHONE ACD + HERRAMIENTAS DE FICHA */}
           <div className="bg-slate-950 border-b border-slate-800 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <div className={`px-2 py-1 rounded font-black text-[11px] flex items-center gap-1.5 ${
                 estadoAgente === 'EN LLAMADA'
                   ? 'bg-red-950 border border-red-500 text-red-300'
@@ -1968,91 +2082,119 @@
                 EXT. {usuario.user.toUpperCase()} · {estadoAgente}
               </div>
 
-              {/* Botón Descolgar */}
               <button
                 type="button"
                 onClick={atenderSiguienteLlamada}
-                className={`px-3 py-1.5 rounded font-black flex items-center gap-1.5 transition ${
+                className={`px-2.5 py-1.5 rounded font-black flex items-center gap-1.5 transition ${
                   entrantes.length > 0
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse shadow-lg shadow-emerald-600/40'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
                 }`}
               >
                 <i className="fa-solid fa-phone-volume"></i>
-                Descolgar [F2] ({entrantes.length})
+                Atender [F2] ({entrantes.length})
               </button>
 
-              {/* Botón Pausa / Disponible */}
               <button
                 type="button"
-                onClick={() => setEstadoAgente(prev => prev === 'PAUSA' ? 'DISPONIBLE' : 'PAUSA')}
-                className="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold"
+                onClick={() => setShowDirectorio(true)}
+                className="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 font-bold"
               >
-                <i className="fa-solid fa-mug-hot mr-1 text-amber-400"></i>
-                {estadoAgente === 'PAUSA' ? 'Reanudar' : 'Pausa'}
+                <i className="fa-solid fa-address-book mr-1"></i>
+                Directorio [Alt+R]
+              </button>
+
+              <button
+                type="button"
+                disabled={!incidenteActivo}
+                onClick={() => setShowModalRevision(true)}
+                className="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 border border-slate-700 text-blue-300 font-bold"
+              >
+                <i className="fa-solid fa-eye mr-1"></i>
+                Revisar [Alt+V]
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold"
+                title="Imprimir pantalla / ficha"
+              >
+                <i className="fa-solid fa-print"></i>
               </button>
             </div>
 
-            {/* Cronómetro SLA + Selector de Fichas */}
-            <div className="flex items-center gap-2">
+            {/* Navegador de registros << < > >> + SLA */}
+            <div className="flex items-center gap-1.5">
               {incidenteActivo && (
-                <div className={`px-2.5 py-1 rounded font-mono font-black border ${
+                <div className={`px-2 py-1 rounded font-mono font-black border ${
                   segundosAtencion > 75
                     ? 'bg-red-950 border-red-500 text-red-300 animate-pulse'
                     : segundosAtencion > 45
                     ? 'bg-amber-950 border-amber-500 text-amber-300'
                     : 'bg-slate-900 border-slate-700 text-cyan-300'
-                }`} title="Tiempo objetivo de clasificación < 60s">
-                  <i className="fa-regular fa-clock mr-1"></i>
+                }`}>
                   SLA: {formatSLA(segundosAtencion)}
                 </div>
               )}
 
+              <div className="flex items-center bg-slate-900 border border-slate-700 rounded overflow-hidden">
+                <button type="button" onClick={() => navegarRegistro('FIRST')} className="px-2 py-1 hover:bg-slate-800 text-slate-300 font-bold">&lt;&lt;</button>
+                <button type="button" onClick={() => navegarRegistro('PREV')} className="px-2 py-1 hover:bg-slate-800 text-slate-300 font-bold border-l border-slate-700">&lt;</button>
+                <button type="button" onClick={() => navegarRegistro('NEXT')} className="px-2 py-1 hover:bg-slate-800 text-slate-300 font-bold border-l border-slate-700">&gt;</button>
+                <button type="button" onClick={() => navegarRegistro('LAST')} className="px-2 py-1 hover:bg-slate-800 text-slate-300 font-bold border-l border-slate-700">&gt;&gt;</button>
+              </div>
+
               <select
                 value={selectedId || ''}
                 onChange={e => setSelectedId(e.target.value || null)}
-                className="bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs font-bold text-amber-300 min-w-[200px]"
+                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-bold text-amber-300 max-w-[175px]"
               >
-                <option value="">-- Cola de Incidentes ({incidentes.length}) --</option>
+                <option value="">-- Cola ({incidentes.length}) --</option>
                 {incidentes.map(inc => (
                   <option key={inc.id} value={inc.id}>
-                    {inc.numFicha} | {inc.estado} | {inc.municipio}
+                    {inc.numFicha} | {inc.estado}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* ALERTA DE SEÑAL AML AUTOMÁTICA CUANDO HAY LLAMADA ACTIVA */}
-          {incidenteActivo && (
-            <div className="bg-cyan-950/60 border-b border-cyan-700/70 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-3">
-                <span className="bg-cyan-600 text-slate-950 font-black px-1.5 py-0.5 rounded text-[10px]">
-                  AML LOCATION
+          {/* ALERTA DE SEÑAL AML Y AVISO AMBULANCIA */}
+          <div className="bg-cyan-950/60 border-b border-cyan-800/70 px-3 py-1 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            {incidenteActivo ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="bg-cyan-600 text-slate-950 font-black px-1.5 py-0.5 rounded text-[10px]">AML GPS</span>
+                  <span className="font-mono text-cyan-200 font-bold">
+                    {incidenteActivo.lat}, {incidenteActivo.lng} (±{incidenteActivo.precision}m) · Ficha: {incidenteActivo.numFicha}
+                  </span>
+                </div>
+                <span className="text-amber-300 font-mono">
+                  Fecha: {incidenteActivo.fecha} · H. Llamada: {incidenteActivo.horaLlamada}
                 </span>
-                <span className="font-mono text-cyan-200 font-bold">
-                  CLI: {incidenteActivo.telefono} · LAT {incidenteActivo.lat}, LNG {incidenteActivo.lng} (Radio ±{incidenteActivo.precision}m)
-                </span>
-              </div>
-              <span className="font-mono font-bold text-amber-300">
-                EXPEDIENTE: {incidenteActivo.numFicha} · {incidenteActivo.horaLlamada}
+              </>
+            ) : (
+              <span className="text-amber-300/90">
+                <i className="fa-solid fa-circle-info mr-1.5"></i>
+                SI QUIEN LLAMA ES UNA AMBULANCIA y no se detectó automáticamente, pulsa <strong>Directorio [Alt+R]</strong> o busca el servicio por nº ficha/municipio.
               </span>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* CUERPO PRINCIPAL CAD: 3 BLOQUES INTEGRADOS (SIN CAMBIAR DE PESTAÑA) */}
+          {/* CUERPO PRINCIPAL CAD AMPLIADO (3 COLUMNAS) */}
           <div className="flex-1 grid grid-cols-1 xl:grid-cols-12 gap-3 p-3 overflow-y-auto cad-scroll">
             
-            {/* BLOQUE IZQUIERDO (4 cols): LOCALIZACIÓN + FILIACIÓN PACIENTE */}
-            <div className="xl:col-span-4 space-y-2.5">
+            {/* COLUMNA 1 (4 cols): TELÉFONOS (ALERTA/PACIENTE) + LOCALIZACIÓN + FILIACIÓN (AÑO NACIM) + MAPA */}
+            <div className="xl:col-span-4 space-y-2">
               <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 space-y-2">
-                <div className="text-[11px] font-black text-cyan-400 uppercase tracking-wider border-b border-slate-800 pb-1 flex items-center justify-between">
-                  <span><i className="fa-solid fa-location-dot mr-1.5 text-red-400"></i>1. Localización & Alertante</span>
+                <div className="text-[11px] font-black text-cyan-400 uppercase tracking-wider border-b border-slate-800 pb-1">
+                  1. Teléfonos, Localización & Alertante
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Teléfono (CLI)</label>
+                <div className="grid grid-cols-12 gap-1.5">
+                  <div className="col-span-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Tel. Alerta</label>
                     <input
                       type="text"
                       value={form.telefono}
@@ -2060,11 +2202,21 @@
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono font-bold text-amber-300"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Alertante / Relación</label>
+                  <div className="col-span-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Tel. Paciente</label>
                     <input
                       type="text"
-                      placeholder="Ej. Hija, testigo..."
+                      placeholder="Opcional"
+                      value={form.telefonoPaciente}
+                      onChange={e => setForm({ ...form, telefonoPaciente: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-white"
+                    />
+                  </div>
+                  <div className="col-span-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Alertante</label>
+                    <input
+                      type="text"
+                      placeholder="Relación..."
                       value={form.alertante}
                       onChange={e => setForm({ ...form, alertante: e.target.value })}
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
@@ -2072,7 +2224,25 @@
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Población</label>
+                    <input
+                      type="text"
+                      value={form.poblacion}
+                      onChange={e => setForm({ ...form, poblacion: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Parroquia / Dist.</label>
+                    <input
+                      type="text"
+                      value={form.parroquia}
+                      onChange={e => setForm({ ...form, parroquia: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
+                    />
+                  </div>
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Municipio *</label>
                     <input
@@ -2082,19 +2252,10 @@
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white font-semibold"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Barrio / Distrito</label>
-                    <input
-                      type="text"
-                      value={form.poblacion}
-                      onChange={e => setForm({ ...form, poblacion: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
-                    />
-                  </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Dirección Exacta / P.K. [Alt+D] *</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Dirección Exacta / Lugar [Alt+D] *</label>
                   <input
                     ref={dirInputRef}
                     type="text"
@@ -2103,16 +2264,27 @@
                     className="w-full bg-slate-900 border border-cyan-700/70 rounded px-2 py-1 text-white font-bold"
                   />
                 </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Notas Generales / Referencias Acceso:</label>
+                  <input
+                    type="text"
+                    placeholder="Portal, código acceso, punto kilométrico..."
+                    value={form.notas}
+                    onChange={e => setForm({ ...form, notas: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
+                  />
+                </div>
               </div>
 
-              {/* FILIACIÓN CLÍNICA */}
+              {/* FILIACIÓN CLÍNICA CON EDAD + AÑO NACIMIENTO */}
               <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 space-y-2">
                 <div className="text-[11px] font-black text-blue-400 uppercase tracking-wider border-b border-slate-800 pb-1">
-                  <i className="fa-solid fa-user-injured mr-1.5"></i>2. Filiación del Paciente
+                  2. Filiación del Paciente
                 </div>
                 <div className="grid grid-cols-12 gap-1.5">
-                  <div className="col-span-6">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Nombre / Apellidos</label>
+                  <div className="col-span-5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Nombre y Apellidos</label>
                     <input
                       type="text"
                       value={form.nombrePac}
@@ -2120,64 +2292,66 @@
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
                     />
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Edad</label>
                     <input
                       type="text"
                       value={form.edad}
-                      onChange={e => setForm({ ...form, edad: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-center"
+                      onChange={e => handleEdadChange(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-white text-center"
                     />
                   </div>
                   <div className="col-span-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Año nacim.</label>
+                    <input
+                      type="text"
+                      placeholder="1975"
+                      value={form.anioNac}
+                      onChange={e => handleAnioChange(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-cyan-300 font-mono text-center"
+                    />
+                  </div>
+                  <div className="col-span-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Sexo</label>
                     <select
                       value={form.sexo}
                       onChange={e => setForm({ ...form, sexo: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-white"
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-1 py-1 text-white"
                     >
                       <option value="H">H</option>
                       <option value="M">M</option>
-                      <option value="D">Desc.</option>
+                      <option value="D">D</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">CIP CatSalut / Antecedentes</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Nº SS / CIP CatSalut</label>
                   <input
                     type="text"
-                    placeholder="Opcional: HTA, DM, Cardiopatía..."
+                    placeholder="Opcional"
                     value={form.nss}
                     onChange={e => setForm({ ...form, nss: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-white"
                   />
                 </div>
               </div>
 
-              {/* MINI MAPA GIS SIEMPRE VISIBLE */}
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2">
-                <div className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex justify-between">
-                  <span>Visor Cartográfico GIS AML</span>
-                  {incidenteActivo && <span className="text-emerald-400 font-mono">GPS OK</span>}
-                </div>
-                <MapaGIS
-                  incidente={incidenteActivo}
-                  unidades={unidades}
-                  altura="h-36"
-                />
-              </div>
+              <MapaGIS
+                incidente={incidenteActivo}
+                unidades={unidades}
+                altura="h-32"
+              />
             </div>
 
-            {/* BLOQUE CENTRAL (4 cols): ÁRBOL DE TRIAJE ABC + CLASIFICACIÓN + AGENCIAS */}
-            <div className="xl:col-span-4 space-y-2.5 flex flex-col justify-between">
-              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 space-y-2.5">
+            {/* COLUMNA 2 (4 cols): TRIAJE PROTOCOLIZADO ABC + CLASIFICACIÓN + AGENCIAS */}
+            <div className="xl:col-span-4 space-y-2">
+              <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 space-y-2">
                 <div className="text-[11px] font-black text-amber-400 uppercase tracking-wider border-b border-slate-800 pb-1">
-                  <i className="fa-solid fa-stethoscope mr-1.5"></i>3. Triaje Rápido Protocolizado (ABC)
+                  3. Triaje Rápido Protocolizado (ABC)
                 </div>
 
-                {/* Pulsadores Consciencia */}
                 <div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">A/D · Nivel de Consciencia:</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">A/D · Consciencia:</div>
                   <div className="grid grid-cols-2 gap-1">
                     {['Alerta / Orientado', 'Responde a voz', 'Responde a dolor', 'Inconsciente'].map(opt => (
                       <button
@@ -2196,7 +2370,6 @@
                   </div>
                 </div>
 
-                {/* Pulsadores Respiración */}
                 <div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">B · Respiración:</div>
                   <div className="grid grid-cols-2 gap-1">
@@ -2221,7 +2394,6 @@
                   </div>
                 </div>
 
-                {/* Pulsadores Signos */}
                 <div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">C · Signos Clave:</div>
                   <div className="grid grid-cols-2 gap-1">
@@ -2243,7 +2415,7 @@
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Motivo / Tipificación:</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Tipo de demanda:</label>
                   <select
                     value={form.tipoDemanda}
                     onChange={e => setForm({ ...form, tipoDemanda: e.target.value })}
@@ -2254,10 +2426,9 @@
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Informe Clínico Interrogatorio:</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Datos interrogatorio:</label>
                   <textarea
                     rows="2"
-                    placeholder="Se autorrellena con los botones ABC o escribe detalles..."
                     value={form.interrogatorio}
                     onChange={e => setForm({ ...form, interrogatorio: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
@@ -2265,7 +2436,7 @@
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Prioridad Despacho [Alt+C]:</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clasificación [Alt+C]:</label>
                   <select
                     ref={clasifSelectRef}
                     value={form.clasificacion}
@@ -2276,9 +2447,8 @@
                   </select>
                 </div>
 
-                {/* Agencias Multi-Cuerpo CAT112 */}
                 <div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Agencias a Activar (CAT112):</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Asignación Agencias / Cuerpos:</div>
                   <div className="flex flex-wrap gap-1">
                     {['061 SEM', 'Mossos', 'Bombers', 'Policia Local'].map(ag => (
                       <button
@@ -2299,9 +2469,9 @@
               </div>
             </div>
 
-            {/* BLOQUE DERECHO (4 cols): VOZ EN DIRECTO CON ALERTANTE + CONSEJOS PRE-ARRIBO + TRASPASO */}
-            <div className="xl:col-span-4 flex flex-col justify-between space-y-2.5">
-              <div className="space-y-2.5">
+            {/* COLUMNA 3 (4 cols): LÍNEA VOZ + DECIR AL ALERTANTE + HACER + BOTONERA ACCIÓN */}
+            <div className="xl:col-span-4 flex flex-col justify-between space-y-2">
+              <div className="space-y-2">
                 {incidenteActivo ? (
                   <LineaTelefonicaVoz
                     incidente={incidenteActivo}
@@ -2311,15 +2481,15 @@
                     compacto={true}
                   />
                 ) : (
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-center text-slate-500">
-                    <i className="fa-solid fa-headset text-2xl mb-1 text-slate-600"></i>
-                    <p className="text-[11px]">Pulsa <strong>Descolgar [F2]</strong> cuando entre una llamada para abrir la línea de audio.</p>
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-center text-slate-500">
+                    <i className="fa-solid fa-headset text-xl mb-1 text-slate-600"></i>
+                    <p className="text-[11px]">Pulsa <strong>Atender [F2]</strong> para abrir línea de audio con el alertante.</p>
                   </div>
                 )}
 
-                <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 space-y-1.5">
-                  <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider">
-                    <i className="fa-solid fa-kit-medical mr-1.5"></i>4. Instrucciones Pre-Arribo al Alertante
+                <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1">
+                  <div className="text-[10px] font-black text-emerald-400 uppercase">
+                    4. Decir al alertante (Consejos pre-arribo):
                   </div>
                   <select
                     value={form.consejoAlertante}
@@ -2335,16 +2505,37 @@
                     className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-emerald-200"
                   ></textarea>
                 </div>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 space-y-1">
+                  <div className="text-[10px] font-black text-amber-400 uppercase">
+                    5. Hacer (Actuación interna / Despacho):
+                  </div>
+                  <select
+                    value={form.hacerSala}
+                    onChange={e => setForm({ ...form, hacerSala: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-white"
+                  >
+                    {ACCIONES_HACER_SALA.map((a, i) => <option key={i} value={a}>{a}</option>)}
+                  </select>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                <button
+                  type="button"
+                  disabled={!incidenteActivo}
+                  onClick={descartarPrueba}
+                  className="bg-red-950 hover:bg-red-900 disabled:opacity-40 text-red-200 font-bold py-2 px-2 rounded-lg border border-red-700 text-[11px]"
+                >
+                  Descartar prueba
+                </button>
+
                 <button
                   type="button"
                   disabled={!incidenteActivo}
                   onClick={guardarCambiosFicha}
-                  className="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-bold py-2.5 px-3 rounded-lg border border-slate-600 flex items-center justify-center gap-1.5"
+                  className="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white font-bold py-2 px-2 rounded-lg border border-slate-600 text-[11px]"
                 >
-                  <i className="fa-solid fa-floppy-disk text-cyan-400"></i>
                   Guardar
                 </button>
 
@@ -2352,14 +2543,102 @@
                   type="button"
                   disabled={!incidenteActivo}
                   onClick={traspasarARespuesta}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black py-2.5 px-3 rounded-lg shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5"
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black py-2 px-2 rounded-lg shadow-lg shadow-emerald-600/30 text-[11px]"
                 >
-                  <i className="fa-solid fa-share-from-square"></i>
                   Traspasar [Alt+T]
                 </button>
               </div>
             </div>
           </div>
+
+          {/* MODAL DIRECTORIO SANITARIO [Alt+R] */}
+          {showDirectorio && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-4 space-y-3 shadow-2xl">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h3 className="font-bold text-sm text-cyan-400 uppercase">
+                    <i className="fa-solid fa-address-book mr-1.5"></i>
+                    Directorio Oficial de Centros Sanitarios y Cuerpos (CAT112 / 061)
+                  </h3>
+                  <button onClick={() => setShowDirectorio(false)} className="text-slate-400 hover:text-white">
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar hospital, CUAP, comisaría o municipio..."
+                  value={busquedaDirectorio}
+                  onChange={e => setBusquedaDirectorio(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
+                />
+                <div className="max-h-72 overflow-y-auto cad-scroll space-y-1.5">
+                  {DIRECTORIO_CENTROS.filter(c =>
+                    c.nombre.toLowerCase().includes(busquedaDirectorio.toLowerCase()) ||
+                    c.municipio.toLowerCase().includes(busquedaDirectorio.toLowerCase())
+                  ).map((c, idx) => (
+                    <div key={idx} className="bg-slate-950 border border-slate-800 rounded p-2.5 flex justify-between items-center gap-2">
+                      <div>
+                        <div className="font-bold text-white text-xs">{c.nombre}</div>
+                        <div className="text-[11px] text-cyan-400">{c.tipo}</div>
+                        <div className="text-[11px] text-slate-400">{c.direccion} ({c.municipio}) · Tel: {c.tel}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm(prev => ({
+                            ...prev,
+                            municipio: c.municipio,
+                            direccion: `${c.nombre} (${c.direccion})`,
+                            notas: prev.notas ? `${prev.notas} | Destino/Centro: ${c.nombre}` : `Centro: ${c.nombre}`
+                          }));
+                          setShowDirectorio(false);
+                        }}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1.5 rounded text-[11px] font-bold shrink-0"
+                      >
+                        Volcar a Ficha
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL REVISAR DATOS [Alt+V] */}
+          {showModalRevision && incidenteActivo && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-4 space-y-3 shadow-2xl text-xs">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h3 className="font-bold text-sm text-blue-400 uppercase">
+                    Auditoría Pre-Traspaso — Expediente {incidenteActivo.numFicha}
+                  </h3>
+                  <button onClick={() => setShowModalRevision(false)} className="text-slate-400 hover:text-white">
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                </div>
+                <div className="space-y-1.5 bg-slate-950 p-3 rounded border border-slate-800">
+                  <div><strong>Teléfonos:</strong> Alerta {form.telefono} {form.telefonoPaciente && `/ Paciente ${form.telefonoPaciente}`}</div>
+                  <div><strong>Ubicación:</strong> {form.direccion}, {form.municipio} ({form.poblacion})</div>
+                  <div><strong>Paciente:</strong> {form.nombrePac || 'No filiado'} · {form.edad || '?'} años ({form.anioNac || '?'}) · Sexo {form.sexo}</div>
+                  <div><strong>Demanda:</strong> {form.tipoDemanda}</div>
+                  <div><strong>Interrogatorio:</strong> {form.interrogatorio || 'Pendiente'}</div>
+                  <div><strong>Prioridad:</strong> <span className="text-amber-300 font-bold">{form.clasificacion}</span></div>
+                  <div><strong>Agencias:</strong> {form.agenciasNotificadas.join(', ')}</div>
+                  <div><strong>Decir al alertante:</strong> {form.consejoAlertante}</div>
+                  <div><strong>Hacer:</strong> {form.hacerSala}</div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowModalRevision(false)} className="bg-slate-800 px-3 py-1.5 rounded font-bold">Cerrar</button>
+                  <button
+                    onClick={() => { setShowModalRevision(false); traspasarARespuesta(); }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded font-black"
+                  >
+                    Confirmar y Traspasar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -2400,14 +2679,14 @@
           recursosAsignados: nuevosRecursos,
           cronologia: [
             ...(incActivo.cronologia || []),
-            { hora, texto: `Unidad ${unidad.id} (${unidad.tipo}) movilizada por ${usuario.nombre}` }
+            { hora, texto: `Unidad ${unidad.id} (${unidad.tipo}) movilizada por ${usuario.nombre} hacia terminal embarcado` }
           ]
         });
 
         await enviarMensajeRadio({
           emisor: `CENTRAL 061 (${usuario.user.toUpperCase()})`,
           canal: 'CANAL 1 - EMERGENCIAS',
-          texto: `Atención ${unidad.id}, servicio ${incActivo.numFicha}: ${incActivo.clasificacion}. Dirección: ${incActivo.direccion} (${incActivo.municipio}). Coordenadas GPS: ${incActivo.lat}, ${incActivo.lng}.`
+          texto: `Atención ${unidad.id}, servicio ${incActivo.numFicha} enviado a navegador embarcado: ${incActivo.clasificacion}. Dirección: ${incActivo.direccion} (${incActivo.municipio}).`
         });
       };
 
@@ -2436,7 +2715,7 @@
                 <i className="fa-solid fa-truck-medical mr-2"></i>
                 Mesa de Coordinación GIS y Despacho de Flota (061 SEM)
               </h2>
-              <p className="text-xs text-slate-400">Visualiza el punto AML del incidente y la posición GPS de las ambulancias</p>
+              <p className="text-xs text-slate-400">Visualiza el punto AML del incidente, telemetría 5G y la posición GPS de las ambulancias</p>
             </div>
             <span className="bg-emerald-950 border border-emerald-600 text-emerald-300 text-xs font-bold px-2.5 py-1 rounded">
               {pendientes.length} Servicios Activos
@@ -2515,6 +2794,11 @@
                           <strong>Triaje 112:</strong> {incActivo.interrogatorio}
                         </div>
                       )}
+                      {incActivo.constantesVitales5G && (
+                        <div className="col-span-2 bg-emerald-950/70 border border-emerald-600 rounded px-2 py-1 text-emerald-300 font-mono text-[11px]">
+                          <strong>📡 Telemetría 5G Ambulancia:</strong> FC {incActivo.constantesVitales5G.fc} lpm · TA {incActivo.constantesVitales5G.ta} mmHg · SatO2 {incActivo.constantesVitales5G.sato2}% · GCS {incActivo.constantesVitales5G.gcs}
+                        </div>
+                      )}
                     </div>
 
                     <MapaGIS
@@ -2526,7 +2810,7 @@
 
                   <div>
                     <h4 className="text-xs font-bold uppercase text-slate-400 mb-1.5">
-                      Flota SEM Disponible (Clic para movilizar):
+                      Flota SEM Disponible (Clic para enviar servicio al terminal embarcado):
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {unidades.map(u => (
@@ -2570,28 +2854,96 @@
     }
 
     // =========================================================================
-    // 3C. CONSOLA DE UNIDAD MÓVIL
+    // 3C. TERMINAL EMBARCADO SEM CATALUNYA (ALTECH / 5G SMART AMBULANCE — IMAGEN 1)
     // =========================================================================
-    function ConsolaUnidadMovil({
+    function ConsolaUnidadMovilAltech({
       usuario, incidentes, unidades, actualizarIncidente, actualizarUnidad, enviarMensajeRadio
     }) {
       const miUnidad = unidades.find(u => u.id === usuario.indicativo) || unidades[0];
       const miServicio = incidentes.find(i => i.id === miUnidad?.incidenteId);
 
+      // Pestañas reales de la tablet Altech SEM: INCIDENT | MISSATGERIA | NAVEGADOR | UTILITATS
+      const [tabAltech, setTabAltech] = useState('NAVEGADOR');
+      const [semaforoVerde5G, setSemaforoVerde5G] = useState(false);
+      const [velocidadSimulada, setVelocidadSimulada] = useState(0);
+      const [calleActual, setCalleActual] = useState(miUnidad?.base || 'Carrer d\'Enric Bargés 9/16');
+      const [rutaCoords, setRutaCoords] = useState(null);
+      const [infoRuta, setInfoRuta] = useState(null);
+      const [hospitalDestino, setHospitalDestino] = useState(DIRECTORIO_CENTROS[0]);
+
+      // Constantes vitales 5G Smart Ambulance
+      const [vitales, setVitales] = useState({ fc: '96', ta: '135/82', sato2: '97', gcs: '15' });
+      const [mensajeCECOS, setMensajeCECOS] = useState('');
+
+      // Calcular ruta real por calles (OSRM) cuando la ambulancia tiene servicio asignado
+      useEffect(() => {
+        if (!miServicio?.lat || !miUnidad?.lat) {
+          setRutaCoords(null);
+          setInfoRuta(null);
+          return;
+        }
+
+        const destLat = miUnidad.estado === 'TRASLADANDO' ? hospitalDestino.lat : miServicio.lat;
+        const destLng = miUnidad.estado === 'TRASLADANDO' ? hospitalDestino.lng : miServicio.lng;
+
+        const calcularRutaOSRM = async () => {
+          try {
+            const url = `https://router.project-osrm.org/route/v1/driving/${miUnidad.lng},${miUnidad.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data && data.routes && data.routes.length > 0) {
+              const r = data.routes[0];
+              const latLngs = r.geometry.coordinates.map(c => [c[1], c[0]]);
+              setRutaCoords(latLngs);
+              setInfoRuta({
+                distanciaKm: (r.distance / 1000).toFixed(1),
+                minutos: Math.max(1, Math.round(r.duration / 60)),
+                destinoNombre: miUnidad.estado === 'TRASLADANDO' ? hospitalDestino.nombre : miServicio.direccion
+              });
+            }
+          } catch (e) {
+            setRutaCoords([[miUnidad.lat, miUnidad.lng], [destLat, destLng]]);
+          }
+        };
+
+        calcularRutaOSRM();
+      }, [miServicio?.id, miUnidad?.lat, miUnidad?.lng, miUnidad?.estado, hospitalDestino]);
+
       const cambiarEstatus = async (nuevoEstado, codigoTetra) => {
+        unlockAudio();
+        playTone('ptt_out');
         const hora = new Date().toLocaleTimeString('es-ES');
         let nuevasCoords = { lat: miUnidad.lat, lng: miUnidad.lng };
 
         if (nuevoEstado === 'EN_CAMINO' && miServicio?.lat) {
+          setVelocidadSimulada(64);
+          setCalleActual('Av. Madrid -> Ruta prioritaria en curso');
           nuevasCoords = {
             lat: Number(((miUnidad.lat + miServicio.lat) / 2).toFixed(6)),
             lng: Number(((miUnidad.lng + miServicio.lng) / 2).toFixed(6))
           };
         } else if (nuevoEstado === 'EN_LUGAR' && miServicio?.lat) {
+          setVelocidadSimulada(0);
+          setSemaforoVerde5G(false);
+          setCalleActual(miServicio.direccion);
           nuevasCoords = {
             lat: Number((miServicio.lat + 0.00015).toFixed(6)),
             lng: Number((miServicio.lng + 0.00015).toFixed(6))
           };
+        } else if (nuevoEstado === 'TRASLADANDO') {
+          setVelocidadSimulada(58);
+          setCalleActual(`En ruta a ${hospitalDestino.nombre}`);
+        } else if (nuevoEstado === 'EN_HOSPITAL') {
+          setVelocidadSimulada(0);
+          setSemaforoVerde5G(false);
+          setCalleActual(hospitalDestino.direccion);
+          nuevasCoords = { lat: hospitalDestino.lat, lng: hospitalDestino.lng };
+        } else if (nuevoEstado === 'DISPONIBLE') {
+          setVelocidadSimulada(0);
+          setSemaforoVerde5G(false);
+          const baseOrig = UNIDADES_INICIALES.find(u => u.id === miUnidad.id);
+          setCalleActual(baseOrig?.base || 'Base Operativa');
+          nuevasCoords = { lat: baseOrig?.lat || 41.3812, lng: baseOrig?.lng || 2.1422 };
         }
 
         await actualizarUnidad(miUnidad.id, {
@@ -2604,7 +2956,7 @@
           await actualizarIncidente(miServicio.id, {
             cronologia: [
               ...(miServicio.cronologia || []),
-              { hora, texto: `[${miUnidad.id}] Estatus cambiado a ${nuevoEstado} (${codigoTetra})` }
+              { hora, texto: `[EMBARCAT ${miUnidad.id}] Estatus: ${nuevoEstado} (${codigoTetra})` }
             ]
           });
         }
@@ -2612,93 +2964,368 @@
         await enviarMensajeRadio({
           emisor: `UNIDAD ${miUnidad.id}`,
           canal: 'CANAL 1 - EMERGENCIAS',
-          texto: `${miUnidad.id} informa estatus: ${nuevoEstado} (${codigoTetra}).`
+          texto: `[SDS EMBARCAT] ${miUnidad.id} -> ${nuevoEstado} (${codigoTetra}).`
         });
       };
 
+      const activarPrioridadSemaforica5G = async () => {
+        const next = !semaforoVerde5G;
+        setSemaforoVerde5G(next);
+        unlockAudio();
+        playTone('ptt_in');
+        if (next) {
+          await enviarMensajeRadio({
+            emisor: `5G SMART AMBULANCE (${miUnidad.id})`,
+            canal: 'CANAL 1 - EMERGENCIAS',
+            texto: `🚦 V2X / 5G Prioridad Semafórica activada en ruta (${calleActual}) + Aviso acústico/radio a vehículos cercanos.`
+          });
+        }
+      };
+
+      const transmitirTelemetria5G = async (e) => {
+        e.preventDefault();
+        if (!miServicio) return;
+        const hora = new Date().toLocaleTimeString('es-ES');
+        await actualizarIncidente(miServicio.id, {
+          constantesVitales5G: vitales,
+          cronologia: [
+            ...(miServicio.cronologia || []),
+            { hora, texto: `[5G TELEMETRÍA ${miUnidad.id}] FC:${vitales.fc} TA:${vitales.ta} SatO2:${vitales.sato2}% GCS:${vitales.gcs}` }
+          ]
+        });
+        alert('Constantes vitales enviadas en tiempo real al CECOS 061 y Hospital de destino.');
+      };
+
+      const enviarMensajeEmbarcat = async (e) => {
+        e.preventDefault();
+        if (!mensajeCECOS.trim()) return;
+        await enviarMensajeRadio({
+          emisor: `EMBARCAT ${miUnidad.id}`,
+          canal: 'CANAL 1 - EMERGENCIAS',
+          texto: `[MISSATGERIA ALTECH] ${mensajeCECOS.trim()}`
+        });
+        setMensajeCECOS('');
+      };
+
       return (
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 flex-1 flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div>
-              <span className="text-xs font-bold text-cyan-400 uppercase">Terminal Embarcado GPS / TETRA</span>
-              <h2 className="text-lg font-black text-white">
-                Indicativo {miUnidad?.id} — {miUnidad?.tipo}
-              </h2>
-            </div>
-            <span className="px-3 py-1 rounded-full text-xs font-black bg-cyan-950 border border-cyan-500 text-cyan-300">
-              ESTATUS: {miUnidad?.estado}
-            </span>
-          </div>
+        <div className="altech-bezel rounded-2xl p-2.5 flex-1 flex flex-col">
+          {/* PANTALLA INTERNA DE LA TABLET ALTECH SEM CATALUNYA */}
+          <div className="bg-black rounded-xl overflow-hidden flex-1 grid grid-cols-12 border-2 border-slate-800 min-h-[500px]">
+            
+            {/* BARRA LATERAL AMARILLA OFICIAL SEM ("emergències mèdiques" + YI12 + 4 BOTONES) */}
+            <div className="col-span-3 sm:col-span-2 bg-[#facc15] text-black flex flex-col justify-between p-1.5 border-r-2 border-black">
+              <div>
+                {/* Logo oficial Emergències Mèdiques + 4 barres vermelles */}
+                <div className="leading-none font-black text-[11px] sm:text-xs tracking-tight text-black">
+                  emergències<br />mèdiques
+                </div>
+                <div className="grid grid-cols-4 gap-1 my-1">
+                  <span className="h-1.5 bg-red-600 block"></span>
+                  <span className="h-1.5 bg-red-600 block"></span>
+                  <span className="h-1.5 bg-red-600 block"></span>
+                  <span className="h-1.5 bg-red-600 block"></span>
+                </div>
 
-          {miServicio ? (
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-              <div className="md:col-span-6 bg-slate-950 border-2 border-amber-500/70 rounded-xl p-3 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="bg-red-600 text-white text-xs font-black px-2 py-0.5 rounded">
-                    SERVICIO: {miServicio.numFicha}
+                {/* Indicativo grande tipo YI12 */}
+                <div className="text-center font-black text-xl sm:text-2xl tracking-tighter text-black border-b border-black/30 pb-1 mb-1.5">
+                  {miUnidad?.id}
+                </div>
+
+                {/* 4 Pulsadores negros/grises oficiales */}
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setTabAltech('INCIDENT')}
+                    className={`w-full py-2 px-1 rounded flex flex-col items-center justify-center border border-black transition relative ${
+                      tabAltech === 'INCIDENT'
+                        ? 'bg-slate-400 text-black font-black shadow-inner'
+                        : 'bg-neutral-900 hover:bg-neutral-800 text-white font-bold'
+                    }`}
+                  >
+                    <i className="fa-solid fa-truck-medical text-base mb-0.5"></i>
+                    <span className="text-[10px]">Incident</span>
+                    {miServicio && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTabAltech('MISSATGERIA')}
+                    className={`w-full py-2 px-1 rounded flex flex-col items-center justify-center border border-black transition ${
+                      tabAltech === 'MISSATGERIA'
+                        ? 'bg-slate-400 text-black font-black shadow-inner'
+                        : 'bg-neutral-900 hover:bg-neutral-800 text-white font-bold'
+                    }`}
+                  >
+                    <i className="fa-solid fa-envelope text-base mb-0.5"></i>
+                    <span className="text-[10px]">Missatgeria</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTabAltech('NAVEGADOR')}
+                    className={`w-full py-2 px-1 rounded flex flex-col items-center justify-center border border-black transition ${
+                      tabAltech === 'NAVEGADOR'
+                        ? 'bg-slate-400 text-black font-black shadow-inner'
+                        : 'bg-neutral-900 hover:bg-neutral-800 text-white font-bold'
+                    }`}
+                  >
+                    <i className="fa-regular fa-compass text-base mb-0.5"></i>
+                    <span className="text-[10px]">Navegador</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTabAltech('UTILITATS')}
+                    className={`w-full py-2 px-1 rounded flex flex-col items-center justify-center border border-black transition ${
+                      tabAltech === 'UTILITATS'
+                        ? 'bg-slate-400 text-black font-black shadow-inner'
+                        : 'bg-neutral-900 hover:bg-neutral-800 text-white font-bold'
+                    }`}
+                  >
+                    <i className="fa-solid fa-wrench text-base mb-0.5"></i>
+                    <span className="text-[10px]">Utilitats</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Pie Altech + Indicadores GPS/TETRA/5G */}
+              <div className="pt-1 border-t border-black/30 text-[9px] font-mono text-black">
+                <div className="grid grid-cols-3 gap-0.5 text-center font-black mb-1">
+                  <span className="bg-emerald-600 text-white rounded px-0.5">TETRA</span>
+                  <span className="bg-emerald-600 text-white rounded px-0.5">5G</span>
+                  <span className="bg-emerald-600 text-white rounded px-0.5">GPS</span>
+                </div>
+                <div className="font-black text-[11px] leading-none">altech</div>
+                <div className="text-[8px] mt-0.5">{new Date().toLocaleDateString('es-ES')}</div>
+              </div>
+            </div>
+
+            {/* ZONA DERECHA DE PANTALLA ALTECH */}
+            <div className="col-span-9 sm:col-span-10 flex flex-col justify-between bg-slate-900 relative">
+              
+              {/* CABECERA DE ESTADO Y PULSADORES RÁPIDOS DE ESTATUS OPERATIVO */}
+              <div className="bg-neutral-950 px-2.5 py-1.5 border-b border-slate-700 flex flex-wrap items-center justify-between gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-400 text-black font-black px-2 py-0.5 rounded text-[10px]">
+                    {miUnidad?.estado}
                   </span>
-                  <span className="text-xs font-bold text-amber-300">{miServicio.clasificacion}</span>
+                  {infoRuta && (
+                    <span className="text-xs font-mono font-bold text-cyan-300">
+                      <i className="fa-solid fa-route mr-1"></i>
+                      {infoRuta.distanciaKm} km · ETA {infoRuta.minutos} min
+                    </span>
+                  )}
                 </div>
-                <div className="text-sm font-bold text-white">
-                  <i className="fa-solid fa-location-dot text-red-500 mr-1.5"></i>
-                  {miServicio.direccion} ({miServicio.municipio})
-                </div>
-                <p className="text-xs text-slate-300 bg-slate-900 p-2 rounded">
-                  {miServicio.interrogatorio || miServicio.notas}
-                </p>
-                <div className="text-[11px] text-slate-400">
-                  <strong>Paciente:</strong> {miServicio.nombrePac || 'Sin filiar'} · <strong>Alertante:</strong> {miServicio.telefono}
+
+                {/* Pulsadores rápidos de cambio de estado desde el embarcado */}
+                <div className="flex flex-wrap gap-1">
+                  <button onClick={() => cambiarEstatus('EN_CAMINO', 'En camí')} className="bg-amber-600 hover:bg-amber-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">En Camí</button>
+                  <button onClick={() => cambiarEstatus('EN_LUGAR', 'Al punt')} className="bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">Al Punt</button>
+                  <button onClick={() => cambiarEstatus('TRASLADANDO', 'Traslladant')} className="bg-purple-600 hover:bg-purple-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">Traslladant</button>
+                  <button onClick={() => cambiarEstatus('EN_HOSPITAL', 'Hospital')} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">Hospital</button>
+                  <button onClick={() => cambiarEstatus('DISPONIBLE', 'QAP Lliure')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">Lliure</button>
                 </div>
               </div>
 
-              <div className="md:col-span-6">
-                <MapaGIS
-                  incidente={miServicio}
-                  unidades={[miUnidad]}
-                  altura="h-48"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 text-center text-slate-400">
-              <i className="fa-solid fa-truck-medical text-3xl mb-2 text-slate-600"></i>
-              <p className="text-xs font-semibold">Unidad operativa en {miUnidad?.base}. A la espera de activación por Central 061.</p>
-            </div>
-          )}
+              {/* CONTENIDO SEGÚN PESTAÑA SELECCIONADA EN EL TERMINAL ALTECH */}
+              <div className="flex-1 flex flex-col relative overflow-y-auto cad-scroll">
+                
+                {/* PESTAÑA 1: NAVEGADOR DE EMERGENCIAS + SEMÁFORO INTELIGENTE 5G + LÍMITE 50 */}
+                {tabAltech === 'NAVEGADOR' && (
+                  <div className="flex-1 relative flex flex-col">
+                    {/* Indicadores superpuestos estilo Imagen 1: Semáforo arriba centro + Señal límite 50 derecha */}
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={activarPrioridadSemaforica5G}
+                        className="bg-neutral-900/95 border-2 border-slate-500 px-3 py-1 rounded-xl flex items-center gap-2 shadow-xl hover:scale-105 transition"
+                        title="Gestió de semàfors intel·ligents 5G Smart Ambulance"
+                      >
+                        <div className="bg-black p-1 rounded border border-slate-600 flex flex-col gap-0.5">
+                          <span className={`w-3 h-3 rounded-full ${!semaforoVerde5G ? 'bg-red-600 shadow-[0_0_8px_red]' : 'bg-red-950'}`}></span>
+                          <span className={`w-3 h-3 rounded-full ${semaforoVerde5G ? 'bg-emerald-400 shadow-[0_0_10px_#34d399]' : 'bg-emerald-950'}`}></span>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[9px] font-bold text-slate-400 uppercase">Semàfor 5G V2X</div>
+                          <div className={`text-[10px] font-black ${semaforoVerde5G ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {semaforoVerde5G ? 'ONA VERDA ACTIVA' : 'POLSAR PRIORITAT'}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
 
-          <div>
-            <h3 className="text-xs font-bold uppercase text-slate-400 mb-2">Pulsadores de Estatus Operativo (Actualizan posición GPS):</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              <button
-                onClick={() => cambiarEstatus('EN_CAMINO', 'En ruta al lugar')}
-                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2.5 px-2 rounded text-xs"
-              >
-                1. En Camino
-              </button>
-              <button
-                onClick={() => cambiarEstatus('EN_LUGAR', 'En el punto / Asistiendo')}
-                className="bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 px-2 rounded text-xs"
-              >
-                2. En el Lugar
-              </button>
-              <button
-                onClick={() => cambiarEstatus('TRASLADANDO', 'Traslado a Hospital')}
-                className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-2 rounded text-xs"
-              >
-                3. Trasladando
-              </button>
-              <button
-                onClick={() => cambiarEstatus('EN_HOSPITAL', 'Transferencia Urgencias')}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-2 rounded text-xs"
-              >
-                4. En Hospital
-              </button>
-              <button
-                onClick={() => cambiarEstatus('DISPONIBLE', 'QAP / Operativo Libre')}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-2 rounded text-xs"
-              >
-                5. Disponible
-              </button>
+                    {/* Señal de límite de velocidad 50 */}
+                    <div className="absolute top-3 right-3 z-20 w-12 h-12 rounded-full bg-white border-4 border-red-600 flex items-center justify-center text-black font-black text-lg shadow-xl">
+                      50
+                    </div>
+
+                    <MapaGIS
+                      incidente={miServicio}
+                      unidades={[miUnidad]}
+                      rutaPolilinea={rutaCoords}
+                      altura="h-full min-h-[360px]"
+                    />
+                  </div>
+                )}
+
+                {/* PESTAÑA 2: INCIDENT (DATOS DEL SERVICIO Y PACIENTE RECIBIDOS DESDE CECOS) */}
+                {tabAltech === 'INCIDENT' && (
+                  <div className="p-4 space-y-3 text-xs">
+                    {miServicio ? (
+                      <>
+                        <div className="bg-red-950/70 border-2 border-red-600 rounded-xl p-3 flex justify-between items-center">
+                          <div>
+                            <span className="text-[10px] font-bold text-red-300 uppercase">Servei Actiu Assignat</span>
+                            <h3 className="text-base font-black text-white">{miServicio.numFicha} · {miServicio.clasificacion}</h3>
+                          </div>
+                          <button
+                            onClick={() => setTabAltech('NAVEGADOR')}
+                            className="bg-amber-400 text-black font-black px-3 py-1.5 rounded-lg text-xs"
+                          >
+                            <i className="fa-solid fa-diamond-turn-right mr-1"></i>
+                            Veure Ruta GPS
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                          <div><strong className="text-slate-400">Adreça:</strong> <span className="text-white font-bold">{miServicio.direccion}</span></div>
+                          <div><strong className="text-slate-400">Municipi:</strong> <span className="text-white">{miServicio.municipio}</span></div>
+                          <div><strong className="text-slate-400">Pacient:</strong> <span className="text-white">{miServicio.nombrePac || 'No filiat'} ({miServicio.edad || '?'}a, {miServicio.sexo})</span></div>
+                          <div><strong className="text-slate-400">Telèfon Alertant:</strong> <span className="text-amber-300 font-mono">{miServicio.telefono}</span></div>
+                          <div className="col-span-2 border-t border-slate-800 pt-2">
+                            <strong className="text-cyan-400">Motiu i Triatge CECOS:</strong>
+                            <p className="text-slate-200 mt-1">{miServicio.interrogatorio || miServicio.notas}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="text-[11px] font-bold text-slate-400 uppercase">Hospital de Destí per Trasllat:</div>
+                            <select
+                              value={hospitalDestino.nombre}
+                              onChange={e => {
+                                const h = DIRECTORIO_CENTROS.find(c => c.nombre === e.target.value);
+                                if (h) setHospitalDestino(h);
+                              }}
+                              className="bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white font-bold mt-1"
+                            >
+                              {DIRECTORIO_CENTROS.filter(c => c.tipo.includes('Hospital') || c.tipo.includes('CUAP')).map(h => (
+                                <option key={h.nombre} value={h.nombre}>{h.nombre}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => { cambiarEstatus('TRASLADANDO', `Trasllat cap a ${hospitalDestino.nombre}`); setTabAltech('NAVEGADOR'); }}
+                            className="bg-purple-600 hover:bg-purple-500 text-white font-black px-3 py-2 rounded-lg"
+                          >
+                            Iniciar Ruta a Hospital
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-12 text-slate-400">
+                        <i className="fa-solid fa-truck-medical text-4xl mb-2 text-slate-600"></i>
+                        <p className="font-bold">Cap incident assignat en aquest moment.</p>
+                        <p className="text-[11px] mt-1">Quan el Gestor de Respuesta 061 et mobilitzi, l'incident i la ruta apareixeran aquí automàticament.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* PESTAÑA 3: MISSATGERIA (REDUCCIÓN DE TRÁFICO DE VOZ CON CECOS) */}
+                {tabAltech === 'MISSATGERIA' && (
+                  <div className="p-4 space-y-3 text-xs">
+                    <div className="font-bold text-amber-400 uppercase">
+                      <i className="fa-solid fa-envelope mr-1.5"></i>
+                      Missatgeria Textual Directa amb Sala CECOS (Reducció trànsit de veu)
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        'Sol·licito suport SVA / VIR al punt',
+                        'Sol·licito presència Mossos / Policia Local',
+                        'Pacient estable, iniciem trasllat hospitalari',
+                        'Preavís hospitalari: possible Codi IAM / ICTUS'
+                      ].map(msg => (
+                        <button
+                          key={msg}
+                          type="button"
+                          onClick={async () => {
+                            await enviarMensajeRadio({
+                              emisor: `EMBARCAT ${miUnidad.id}`,
+                              canal: 'CANAL 1 - EMERGENCIAS',
+                              texto: `[MISSATGERIA ALTECH] ${msg}`
+                            });
+                            alert('Missatge enviat a consola CECOS');
+                          }}
+                          className="bg-slate-950 hover:bg-slate-800 border border-slate-700 p-2 rounded text-left text-slate-200 font-semibold"
+                        >
+                          {msg}
+                        </button>
+                      ))}
+                    </div>
+                    <form onSubmit={enviarMensajeEmbarcat} className="flex gap-2 pt-2">
+                      <input
+                        type="text"
+                        placeholder="Escriure missatge a Central 061..."
+                        value={mensajeCECOS}
+                        onChange={e => setMensajeCECOS(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white"
+                      />
+                      <button type="submit" className="bg-amber-400 text-black font-black px-4 py-2 rounded">
+                        Enviar
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* PESTAÑA 4: UTILITATS (TELEMETRÍA 5G SMART AMBULANCE + AVISO V2X) */}
+                {tabAltech === 'UTILITATS' && (
+                  <div className="p-4 space-y-3 text-xs">
+                    <div className="bg-cyan-950/60 border border-cyan-600 rounded-xl p-3 space-y-2">
+                      <div className="font-black text-cyan-300 uppercase">
+                        <i className="fa-solid fa-heart-pulse mr-1.5"></i>
+                        Projecte 5G SEM Smart Ambulance — Transmissió de Constants Vitals
+                      </div>
+                      <form onSubmit={transmitirTelemetria5G} className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block">FC (lpm)</label>
+                          <input type="text" value={vitales.fc} onChange={e => setVitales({...vitales, fc: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-emerald-400 font-mono font-bold" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block">TA (mmHg)</label>
+                          <input type="text" value={vitales.ta} onChange={e => setVitales({...vitales, ta: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-amber-400 font-mono font-bold" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block">SatO2 (%)</label>
+                          <input type="text" value={vitales.sato2} onChange={e => setVitales({...vitales, sato2: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-cyan-400 font-mono font-bold" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 block">Glasgow</label>
+                          <input type="text" value={vitales.gcs} onChange={e => setVitales({...vitales, gcs: e.target.value})} className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white font-mono font-bold" />
+                        </div>
+                        <button type="submit" disabled={!miServicio} className="col-span-4 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white font-black py-2 rounded-lg mt-1">
+                          Transmetre Monitorització en Temps Real a CECOS / Hospital
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* BARRA INFERIOR NEGRA OFICIAL ALTECH: VELOCÍMETRO "0 km/h" + CALLE ACTUAL */}
+              <div className="bg-black border-t-2 border-slate-700 px-3 py-1.5 flex items-center justify-between text-white">
+                <div className="flex items-baseline gap-1 font-mono">
+                  <span className="text-2xl font-black text-white">{velocidadSimulada}</span>
+                  <span className="text-[10px] text-slate-400 font-bold">km/h</span>
+                </div>
+                <div className="text-right truncate max-w-[75%]">
+                  <div className="text-sm sm:text-base font-black text-amber-300 truncate">
+                    {calleActual}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2916,7 +3543,6 @@
 
       return (
         <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-3 flex flex-col flex-1 shadow-2xl">
-          {/* CABECERA TERMINAL RADIO SEPURA / MOTOROLA TETRA */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 mb-2 space-y-1.5">
             <div className="flex items-center justify-between text-[10px] font-mono text-emerald-400">
               <span><i className="fa-solid fa-signal mr-1"></i>RESCAT -68dBm</span>
@@ -2947,7 +3573,6 @@
             </div>
           </div>
 
-          {/* Controles Altavoz + Alerta */}
           <div className="flex items-center justify-between gap-2 mb-2">
             <button
               type="button"
@@ -2976,7 +3601,6 @@
             </button>
           </div>
 
-          {/* Banner TX/RX en vivo */}
           {(grabando || canalOcupadoPorOtro || reproduciendoVoz) && (
             <div className={`mb-2 px-3 py-1.5 rounded-lg font-mono text-xs font-black flex items-center justify-between ${
               grabando ? 'bg-red-600 text-white' :
@@ -3000,7 +3624,6 @@
             </div>
           )}
 
-          {/* Pantalla LCD Retroiluminada */}
           <div className="flex-1 tetra-lcd border-2 border-slate-700 rounded-xl p-2.5 overflow-y-auto cad-scroll max-h-[240px] space-y-2 font-mono text-xs">
             {mensajesFiltrados.length === 0 ? (
               <div className="text-emerald-500/70 text-center py-8 text-[11px]">
@@ -3038,7 +3661,6 @@
             <div ref={chatEndRef} />
           </div>
 
-          {/* Pulsadores rápidos SDS TETRA */}
           <div className="grid grid-cols-4 gap-1 mt-2">
             {['10-4 Recibido', 'QAP Escucha', 'Solicito SVA', 'Clave 0 PCR'].map(sds => (
               <button
@@ -3052,7 +3674,6 @@
             ))}
           </div>
 
-          {/* Botón PTT + Texto */}
           <div className="mt-2 space-y-2">
             <button
               type="button"
