@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulador CECOS CAT112 / 061 SEM — Teleemergencias GIS & Voz</title>
+  <title>Simulador CECOS CAT112 / 061 SEM — Teleemergencias GIS & TETRA</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   
-  <!-- Leaflet GIS (Mapas reales OpenStreetMap sin necesidad de API Key) -->
+  <!-- Leaflet GIS (Mapas reales OpenStreetMap) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -63,6 +63,14 @@
       z-index: 10 !important;
       font-family: inherit;
     }
+    @keyframes eq-bar {
+      0%, 100% { height: 20%; }
+      50% { height: 100%; }
+    }
+    .eq-animate-1 { animation: eq-bar 0.35s infinite ease-in-out; }
+    .eq-animate-2 { animation: eq-bar 0.25s infinite ease-in-out 0.1s; }
+    .eq-animate-3 { animation: eq-bar 0.4s infinite ease-in-out 0.2s; }
+    .eq-animate-4 { animation: eq-bar 0.3s infinite ease-in-out 0.05s; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen select-none">
@@ -87,6 +95,158 @@
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
+
+    // =========================================================================
+    // CONFIGURACIÓN FIREBASE POR DEFECTO DEL AULA (cecos-aula)
+    // =========================================================================
+    const DEFAULT_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAcEnXEP2EHPR01po_zOKSZhFhVf6El1b0",
+      authDomain: "cecos-aula.firebaseapp.com",
+      projectId: "cecos-aula",
+      storageBucket: "cecos-aula.firebasestorage.app",
+      messagingSenderId: "247655612881",
+      appId: "1:247655612881:web:7dc18bd9d9e19d40a720f0"
+    };
+
+    // =========================================================================
+    // MOTOR DE AUDIO GLOBAL (TONOS DTMF TELÉFONO + TONOS TETRA + VOZ FILTRADA)
+    // =========================================================================
+    let sharedAudioCtx = null;
+
+    const unlockAudio = () => {
+      try {
+        if (!sharedAudioCtx) {
+          sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (sharedAudioCtx.state === 'suspended') {
+          sharedAudioCtx.resume();
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const DTMF_FREQS = {
+      '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
+      '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+      '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
+      '*': [941, 1209], '0': [941, 1336], '#': [941, 1477]
+    };
+
+    const playDTMF = (digit) => {
+      try {
+        unlockAudio();
+        const freqs = DTMF_FREQS[digit];
+        if (!freqs || !sharedAudioCtx) return;
+        const now = sharedAudioCtx.currentTime;
+        freqs.forEach(f => {
+          const osc = sharedAudioCtx.createOscillator();
+          const gain = sharedAudioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+          osc.connect(gain);
+          gain.connect(sharedAudioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.15);
+        });
+      } catch (e) {}
+    };
+
+    const playTone = (type) => {
+      try {
+        unlockAudio();
+        const ctx = sharedAudioCtx;
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const now = ctx.currentTime;
+        if (type === 'ptt_in') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1150, now);
+          osc.frequency.setValueAtTime(1520, now + 0.055);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+          osc.start(now);
+          osc.stop(now + 0.14);
+        } else if (type === 'ptt_out') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(980, now);
+          osc.frequency.setValueAtTime(660, now + 0.065);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          osc.start(now);
+          osc.stop(now + 0.17);
+        } else if (type === 'alert_tetra') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.setValueAtTime(1180, now + 0.15);
+          osc.frequency.setValueAtTime(880, now + 0.30);
+          osc.frequency.setValueAtTime(1180, now + 0.45);
+          gain.gain.setValueAtTime(0.14, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+          osc.start(now);
+          osc.stop(now + 0.66);
+        } else if (type === 'ring') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(425, now);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+          osc.start(now);
+          osc.stop(now + 0.56);
+        }
+      } catch (e) {}
+    };
+
+    const playRadioVoiceBase64 = (base64Data, onStartCb, onEndCb) => {
+      try {
+        unlockAudio();
+        playTone('ptt_in');
+        const audio = new Audio(base64Data);
+        audio.volume = 1.0;
+
+        if (sharedAudioCtx) {
+          try {
+            const source = sharedAudioCtx.createMediaElementSource(audio);
+            const highpass = sharedAudioCtx.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.value = 320;
+
+            const lowpass = sharedAudioCtx.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            lowpass.frequency.value = 2900;
+
+            const compressor = sharedAudioCtx.createDynamicsCompressor();
+            compressor.threshold.value = -24;
+            compressor.ratio.value = 6;
+
+            source.connect(highpass);
+            highpass.connect(lowpass);
+            lowpass.connect(compressor);
+            compressor.connect(sharedAudioCtx.destination);
+          } catch (filterErr) {}
+        }
+
+        if (onStartCb) onStartCb();
+        audio.onended = () => {
+          playTone('ptt_out');
+          if (onEndCb) onEndCb();
+        };
+        audio.onerror = () => {
+          if (onEndCb) onEndCb();
+        };
+        audio.play().catch(() => {
+          if (onEndCb) onEndCb();
+        });
+      } catch (e) {
+        if (onEndCb) onEndCb();
+      }
+    };
 
     // =========================================================================
     // DATOS MAESTROS DEL AULA Y FLOTA SEM CATALUNYA
@@ -143,13 +303,19 @@
 
     const CASOS_PRACTICOS_ALERTANTE = [
       {
-        titulo: 'Supuesto 1: Dolor torácico (Eixample)',
+        titulo: 'Supuesto 1: Dolor torácico',
         telefono: '644128930',
         alertante: 'Marta Puig (Transeúnte)',
         municipio: 'Barcelona',
         poblacion: 'Eixample',
         direccion: 'Carrer de Balmes, 145 (esquina Rosselló)',
         notas: 'Varón de unos 58 años sentado en un banco, pálido, sudoroso, se lleva la mano al pecho y dice que le oprime mucho desde hace 15 minutos. Consciente y respira con dificultad.',
+        guionRoleplay: [
+          'Dices de entrada: "Hola, hay un hombre muy malo en la calle Balmes, dice que le duele muchísimo el pecho".',
+          'Si te preguntan si está consciente: "Sí, está despierto pero muy pálido y sudando frío".',
+          'Si te preguntan si respira: "Sí, respira rápido y con fatiga".',
+          'Si te preguntan antecedentes o medicación: "Dice que toma pastillas para la tensión y el colesterol".'
+        ],
         nombrePac: 'Carlos Soler',
         edad: '58',
         sexo: 'H',
@@ -158,13 +324,19 @@
         precision: 12
       },
       {
-        titulo: 'Supuesto 2: Posible PCR (L\'Hospitalet)',
+        titulo: 'Supuesto 2: Posible PCR',
         telefono: '934512089',
         alertante: 'Jordi Ferrer (Hijo)',
         municipio: 'L\'Hospitalet de Llobregat',
         poblacion: 'Centre',
         direccion: 'Rambla Just Oliveras, 32, 3º 2ª',
         notas: 'Mi padre de 72 años se ha desplomado en el salón hace 2 minutos. No responde cuando le llamo ni le sacudo, y parece que no respira normal (boquea). Tiene antecedentes de corazón.',
+        guionRoleplay: [
+          'Dices muy nervioso: "¡Por favor, manden una ambulancia rápido, mi padre se acaba de caer al suelo en el comedor y no se mueve!".',
+          'Si te piden comprobar consciencia: "Le grito y le sacudo de los hombros pero no abre los ojos ni hace nada".',
+          'Si te piden comprobar respiración (ver-oír-sentir 10s): "No sube el pecho, solo hace como un ronquido raro muy espaciado (gasping)".',
+          'Si te indican iniciar RCP: "Vale, lo pongo boca arriba en el suelo duro y empiezo a apretar fuerte en el centro del pecho".'
+        ],
         nombrePac: 'Antoni Ferrer',
         edad: '72',
         sexo: 'H',
@@ -173,13 +345,19 @@
         precision: 18
       },
       {
-        titulo: 'Supuesto 3: Accidente moto (Glòries)',
+        titulo: 'Supuesto 3: Accidente moto',
         telefono: '619884321',
         alertante: 'Laura Gómez (Testigo)',
         municipio: 'Barcelona',
         poblacion: 'Sant Martí',
         direccion: 'Avinguda Diagonal, 211 (frente Torre Glòries)',
         notas: 'Colisión entre un coche y una motocicleta. El motorista de unos 26 años está tendido en la calzada con el casco puesto, consciente pero se queja de mucho dolor en pierna derecha y cadera.',
+        guionRoleplay: [
+          'Dices de entrada: "Acaba de haber un choque entre un coche y una moto en la Diagonal, frente a la Torre Glòries".',
+          'Si preguntan por el motorista: "Lleva el casco puesto, está consciente y habla, pero grita de dolor en la pierna derecha".',
+          'Si preguntan por hemorragias o seguridad: "No sangra mucho, pero está en el carril central y pasan coches".',
+          'Si te dan consejo pre-arribo: "De acuerdo, no le quito el casco ni lo muevo, señalizo la zona con los triángulos".'
+        ],
         nombrePac: 'Marc Vidal',
         edad: '26',
         sexo: 'H',
@@ -188,44 +366,6 @@
         precision: 9
       }
     ];
-
-    // =========================================================================
-    // SONIDOS SINTETIZADOS (RING LLAMADA & TONOS TELEFÓNICOS / TETRA)
-    // =========================================================================
-    const playTone = (type) => {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        if (type === 'ptt_in') {
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(1100, ctx.currentTime);
-          osc.frequency.setValueAtTime(1450, ctx.currentTime + 0.06);
-          gain.gain.setValueAtTime(0.12, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.15);
-        } else if (type === 'ptt_out') {
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(950, ctx.currentTime);
-          osc.frequency.setValueAtTime(680, ctx.currentTime + 0.07);
-          gain.gain.setValueAtTime(0.12, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.17);
-        } else if (type === 'ring') {
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(425, ctx.currentTime);
-          gain.gain.setValueAtTime(0.1, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.46);
-        }
-      } catch (e) {}
-    };
 
     // =========================================================================
     // COMPONENTE REUTILIZABLE: VISOR MAPA GIS TÁCTICO (LEAFLET)
@@ -246,7 +386,7 @@
         const initLat = incidente?.lat || coordenadasSeleccionadas?.lat || 41.3874;
         const initLng = incidente?.lng || coordenadasSeleccionadas?.lng || 2.1686;
 
-        const map = window.L.map(mapContainerRef.current).setView([initLat, initLng], 14);
+        const map = window.L.map(mapContainerRef.current).setView([initLat, initLng], 15);
         window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap | GIS CAT112'
         }).addTo(map);
@@ -285,7 +425,6 @@
         const precision = incidente?.precision || coordenadasSeleccionadas?.precision || 15;
 
         if (targetLat && targetLng) {
-          // Círculo de precisión AML (Advanced Mobile Location)
           window.L.circle([targetLat, targetLng], {
             color: '#ef4444',
             fillColor: '#ef4444',
@@ -293,10 +432,9 @@
             radius: precision
           }).addTo(group);
 
-          // Marcador rojo de emergencia
           const incIcon = window.L.divIcon({
             className: 'custom-div-icon',
-            html: `<div style="background:#dc2626;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 0 10px rgba(220,38,38,0.9);font-weight:bold;font-size:12px;">112</div>`,
+            html: `<div style="background:#dc2626;color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 0 10px rgba(220,38,38,0.9);font-weight:bold;font-size:11px;">112</div>`,
             iconSize: [28, 28],
             iconAnchor: [14, 14]
           });
@@ -308,7 +446,6 @@
           map.setView([targetLat, targetLng], 15);
         }
 
-        // Dibujar unidades móviles SEM
         unidades.forEach(u => {
           if (!u.lat || !u.lng) return;
           const color = u.estado === 'DISPONIBLE' ? '#059669' : '#d97706';
@@ -336,7 +473,7 @@
     // =========================================================================
     function LineaTelefonicaVoz({
       incidente,
-      rolEnLlamada, // 'ALERTANTE' | 'OPERADOR'
+      rolEnLlamada,
       nombreEmisor,
       enviarAudioOTextoLlamada
     }) {
@@ -357,6 +494,7 @@
         if (ultimo.id !== lastPlayedIdRef.current && ultimo.rol !== rolEnLlamada && ultimo.audioBase64) {
           lastPlayedIdRef.current = ultimo.id;
           try {
+            unlockAudio();
             const audio = new Audio(ultimo.audioBase64);
             audio.play().catch(() => {});
           } catch (e) {}
@@ -364,6 +502,7 @@
       }, [mensajes.length]);
 
       const iniciarVoz = async () => {
+        unlockAudio();
         playTone('ptt_in');
         setGrabando(true);
         try {
@@ -392,7 +531,7 @@
           mediaRecorderRef.current = mr;
           mr.start();
         } catch (err) {
-          alert('No se detectó micrófono o no diste permiso en el navegador. Puedes escribir en el chat telefónico inferior.');
+          alert('No se detectó micrófono o no diste permiso en el navegador.');
           setGrabando(false);
         }
       };
@@ -517,9 +656,9 @@
             return decoded;
           }
           const saved = localStorage.getItem('cecos_fb_config');
-          return saved ? JSON.parse(saved) : null;
+          return saved ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
         } catch (e) {
-          return null;
+          return DEFAULT_FIREBASE_CONFIG;
         }
       });
 
@@ -534,6 +673,13 @@
       const [incidentes, setIncidentes] = useState([]);
       const [unidades, setUnidades] = useState(UNIDADES_INICIALES);
       const [mensajesRadio, setMensajesRadio] = useState([]);
+      const [estadoCanalesTetra, setEstadoCanalesTetra] = useState({});
+
+      useEffect(() => {
+        const handleFirstInteraction = () => unlockAudio();
+        window.addEventListener('pointerdown', handleFirstInteraction, { once: true });
+        return () => window.removeEventListener('pointerdown', handleFirstInteraction);
+      }, []);
 
       useEffect(() => {
         if (window.FirebaseSDK) {
@@ -559,6 +705,7 @@
         let unsubInc = null;
         let unsubUni = null;
         let unsubRad = null;
+        let unsubCh = null;
 
         const initCloud = async () => {
           setNetStatus('CONNECTING');
@@ -595,6 +742,12 @@
             unsubRad = onSnapshot(query(collection(db, 'cecos_radio'), orderBy('timestamp', 'asc')), (snap) => {
               setMensajesRadio(snap.docs.map(d => ({ id: d.id, ...d.data() })));
             });
+
+            unsubCh = onSnapshot(collection(db, 'cecos_canales_tetra'), (snap) => {
+              const map = {};
+              snap.docs.forEach(d => { map[d.id] = d.data(); });
+              setEstadoCanalesTetra(map);
+            });
           } catch (err) {
             console.error('Error conectando Firebase:', err);
             setNetStatus('LOCAL');
@@ -607,6 +760,7 @@
           if (unsubInc) unsubInc();
           if (unsubUni) unsubUni();
           if (unsubRad) unsubRad();
+          if (unsubCh) unsubCh();
         };
       }, [firebaseConfig, sdkReady]);
 
@@ -615,9 +769,11 @@
           const inc = JSON.parse(localStorage.getItem('cecos_local_inc') || '[]');
           const uni = JSON.parse(localStorage.getItem('cecos_local_uni') || 'null');
           const rad = JSON.parse(localStorage.getItem('cecos_local_rad') || '[]');
+          const ch = JSON.parse(localStorage.getItem('cecos_local_ch') || '{}');
           setIncidentes(inc);
           setUnidades(uni || UNIDADES_INICIALES);
           setMensajesRadio(rad);
+          setEstadoCanalesTetra(ch);
         } catch (e) {}
       };
 
@@ -629,6 +785,18 @@
         window.addEventListener('storage', onStorage);
         return () => window.removeEventListener('storage', onStorage);
       }, [netStatus]);
+
+      const actualizarCanalTetra = async (canalId, data) => {
+        const payload = { ...data, updatedAt: Date.now() };
+        if (netStatus === 'CLOUD' && dbInstance) {
+          const { doc, setDoc } = window.FirebaseSDK;
+          await setDoc(doc(dbInstance, 'cecos_canales_tetra', canalId), payload);
+        } else {
+          const next = { ...estadoCanalesTetra, [canalId]: payload };
+          setEstadoCanalesTetra(next);
+          localStorage.setItem('cecos_local_ch', JSON.stringify(next));
+        }
+      };
 
       const crearIncidente = async (nuevoInc) => {
         const numFicha = 'CAT-' + Math.floor(100000 + Math.random() * 900000);
@@ -716,13 +884,17 @@
           for (const d of incSnap.docs) await deleteDoc(doc(dbInstance, 'cecos_incidentes', d.id));
           const radSnap = await getDocs(collection(dbInstance, 'cecos_radio'));
           for (const d of radSnap.docs) await deleteDoc(doc(dbInstance, 'cecos_radio', d.id));
+          const chSnap = await getDocs(collection(dbInstance, 'cecos_canales_tetra'));
+          for (const d of chSnap.docs) await deleteDoc(doc(dbInstance, 'cecos_canales_tetra', d.id));
           for (const u of UNIDADES_INICIALES) await setDoc(doc(dbInstance, 'cecos_unidades', u.id), u);
         } else {
           localStorage.removeItem('cecos_local_inc');
           localStorage.removeItem('cecos_local_rad');
+          localStorage.removeItem('cecos_local_ch');
           localStorage.setItem('cecos_local_uni', JSON.stringify(UNIDADES_INICIALES));
           setIncidentes([]);
           setMensajesRadio([]);
+          setEstadoCanalesTetra({});
           setUnidades(UNIDADES_INICIALES);
         }
       };
@@ -739,15 +911,15 @@
               </div>
               <div>
                 <h1 className="font-bold text-sm md:text-base text-white leading-tight">
-                  SIMULADOR CECOS — TELEEMERGENCIAS GIS & VOZ
+                  SIMULADOR CECOS — TELEEMERGENCIAS GIS & TETRA
                 </h1>
-                <p className="text-xs text-slate-400">CFGM Emergencias Sanitarias · Geolocalización AML + Línea Voz + TETRA</p>
+                <p className="text-xs text-slate-400">CFGM Emergencias Sanitarias · Geolocalización AML + Línea Voz + Red RESCAT</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setVistaPrincipal('ALERTANTE')}
+                onClick={() => { unlockAudio(); setVistaPrincipal('ALERTANTE'); }}
                 className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition ${
                   vistaPrincipal === 'ALERTANTE'
                     ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
@@ -759,7 +931,7 @@
               </button>
 
               <button
-                onClick={() => setVistaPrincipal('CECOS')}
+                onClick={() => { unlockAudio(); setVistaPrincipal('CECOS'); }}
                 className={`px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1.5 transition relative ${
                   vistaPrincipal === 'CECOS'
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
@@ -803,7 +975,7 @@
                 unidades={unidades}
               />
             ) : !usuarioActual ? (
-              <LoginCECOS onLogin={(u) => setUsuarioActual(u)} />
+              <LoginCECOS onLogin={(u) => { unlockAudio(); setUsuarioActual(u); }} />
             ) : (
               <SalaCECOS
                 usuario={usuarioActual}
@@ -811,6 +983,8 @@
                 incidentes={incidentes}
                 unidades={unidades}
                 mensajesRadio={mensajesRadio}
+                estadoCanalesTetra={estadoCanalesTetra}
+                actualizarCanalTetra={actualizarCanalTetra}
                 actualizarIncidente={actualizarIncidente}
                 actualizarUnidad={actualizarUnidad}
                 enviarMensajeRadio={enviarMensajeRadio}
@@ -839,7 +1013,7 @@
     }
 
     // =========================================================================
-    // 1. PORTAL DEL ALERTANTE (CON GEOLOCALIZACIÓN AML Y VOZ TELEFÓNICA)
+    // 1. PORTAL DEL ALERTANTE MEJORADO (GEOCODING INVERSO + TECLADO DTMF + ROLEPLAY)
     // =========================================================================
     function PortalAlertante({ crearIncidente, actualizarIncidente, incidentes, unidades }) {
       const [linea, setLinea] = useState('112');
@@ -849,35 +1023,100 @@
       const [poblacion, setPoblacion] = useState('');
       const [direccion, setDireccion] = useState('');
       const [notas, setNotas] = useState('');
+      const [guionActivo, setGuionActivo] = useState([]);
+      const [modoInterrogatorioReal, setModoInterrogatorioReal] = useState(true);
       const [nombrePac, setNombrePac] = useState('');
       const [edad, setEdad] = useState('');
       const [sexo, setSexo] = useState('H');
-      const [coords, setCoords] = useState({ lat: 41.3874, lng: 2.1686, precision: 20 });
-      const [gpsStatus, setGpsStatus] = useState('Listo (Haz clic en el mapa o usa GPS real)');
+      const [coords, setCoords] = useState({ lat: 41.3874, lng: 2.1686, precision: 18 });
+      const [gpsStatus, setGpsStatus] = useState('Haz clic en el mapa o pulsa "Usar mi GPS Real"');
+      const [buscandoDir, setBuscandoDir] = useState(false);
       const [llamadaActivaId, setLlamadaActivaId] = useState(null);
+      const [segundosLlamada, setSegundosLlamada] = useState(0);
 
       const llamadaActual = useMemo(
         () => incidentes.find(i => i.id === llamadaActivaId),
         [incidentes, llamadaActivaId]
       );
 
+      // Cronómetro en vivo de llamada telefónica
+      useEffect(() => {
+        if (!llamadaActual) {
+          setSegundosLlamada(0);
+          return;
+        }
+        const timer = setInterval(() => {
+          setSegundosLlamada(s => s + 1);
+        }, 1000);
+        return () => clearInterval(timer);
+      }, [llamadaActual?.id]);
+
+      const formatTimer = (sec) => {
+        const m = String(Math.floor(sec / 60)).padStart(2, '0');
+        const s = String(sec % 60).padStart(2, '0');
+        return `${m}:${s}`;
+      };
+
+      // Geocodificación inversa: al hacer clic en el mapa o usar GPS, obtiene automáticamente la calle real
+      const resolverDireccionDesdeCoords = async (lat, lng, precision) => {
+        setCoords({ lat, lng, precision });
+        setGpsStatus(`Obteniendo calle desde coordenadas AML (±${precision}m)...`);
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`);
+          const data = await resp.json();
+          if (data && data.address) {
+            const road = data.address.road || data.address.pedestrian || data.address.square || '';
+            const num = data.address.house_number ? `, ${data.address.house_number}` : '';
+            const city = data.address.city || data.address.town || data.address.village || data.address.municipality || 'Barcelona';
+            const suburb = data.address.suburb || data.address.neighbourhood || '';
+            if (road) setDireccion(`${road}${num}`);
+            if (city) setMunicipio(city);
+            if (suburb) setPoblacion(suburb);
+            setGpsStatus(`AML fijado: ${road}${num} (${city}) · ±${precision}m`);
+          } else {
+            setGpsStatus(`Punto AML fijado: ${lat}, ${lng} (±${precision}m)`);
+          }
+        } catch (e) {
+          setGpsStatus(`Coordenadas AML fijadas: ${lat}, ${lng} (±${precision}m)`);
+        }
+      };
+
+      // Geocodificación directa: buscar dirección escrita en el mapa
+      const buscarDireccionEnMapa = async () => {
+        if (!direccion.trim()) return;
+        setBuscandoDir(true);
+        try {
+          const q = encodeURIComponent(`${direccion}, ${municipio}, Catalunya`);
+          const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`);
+          const results = await resp.json();
+          if (results && results.length > 0) {
+            const lat = Number(parseFloat(results[0].lat).toFixed(6));
+            const lng = Number(parseFloat(results[0].lon).toFixed(6));
+            setCoords({ lat, lng, precision: 12 });
+            setGpsStatus(`Dirección localizada en GIS: ${lat}, ${lng} (±12m)`);
+          } else {
+            setGpsStatus('No se encontró esa calle exacta; haz clic en el mapa.');
+          }
+        } catch (e) {}
+        setBuscandoDir(false);
+      };
+
       const obtenerGPSReal = () => {
         if (!navigator.geolocation) {
           setGpsStatus('Tu navegador no soporta GPS.');
           return;
         }
-        setGpsStatus('Obteniendo satélite GPS AML...');
+        setGpsStatus('Conectando satélites GPS AML...');
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            setCoords({
-              lat: Number(pos.coords.latitude.toFixed(6)),
-              lng: Number(pos.coords.longitude.toFixed(6)),
-              precision: Math.round(pos.coords.accuracy || 15)
-            });
-            setGpsStatus(`GPS AML fijado (±${Math.round(pos.coords.accuracy || 15)}m)`);
+            resolverDireccionDesdeCoords(
+              Number(pos.coords.latitude.toFixed(6)),
+              Number(pos.coords.longitude.toFixed(6)),
+              Math.round(pos.coords.accuracy || 15)
+            );
           },
           () => {
-            setGpsStatus('Permiso denegado. Haz clic en el mapa para fijar punto.');
+            setGpsStatus('Permiso denegado. Haz clic directamente sobre el mapa.');
           },
           { enableHighAccuracy: true }
         );
@@ -890,31 +1129,51 @@
         setPoblacion(caso.poblacion);
         setDireccion(caso.direccion);
         setNotas(caso.notas);
+        setGuionActivo(caso.guionRoleplay || []);
         setNombrePac(caso.nombrePac);
         setEdad(caso.edad);
         setSexo(caso.sexo);
         setCoords({ lat: caso.lat, lng: caso.lng, precision: caso.precision });
-        setGpsStatus(`Coordenadas AML cargadas (±${caso.precision}m)`);
+        setGpsStatus(`Supuesto AML cargado: ${caso.direccion} (±${caso.precision}m)`);
+      };
+
+      const marcarDigito = (d) => {
+        playDTMF(d);
+        if (linea.length >= 3) {
+          setLinea(d);
+        } else {
+          setLinea(prev => prev + d);
+        }
       };
 
       const realizarLlamada = async (e) => {
         e.preventDefault();
-        if (!direccion.trim() || !notas.trim()) {
-          alert('Por favor indica al menos la dirección y qué está ocurriendo.');
+        if (!direccion.trim()) {
+          alert('Indica o marca en el mapa la ubicación del incidente.');
           return;
         }
+        if (!modoInterrogatorioReal && !notas.trim()) {
+          alert('Explica qué está ocurriendo o activa el modo interrogatorio por voz.');
+          return;
+        }
+        unlockAudio();
         playTone('ring');
+
+        // Si el modo interrogatorio realista está activo, el operador recibe la llamada "en blanco" (como en la realidad)
+        // y debe interrogar al alumno por voz para descubrir los síntomas y filiación.
         const inc = await crearIncidente({
-          linea,
+          linea: linea || '112',
           telefono,
-          alertante: alertante || 'Alertante anónimo',
+          alertante: modoInterrogatorioReal ? '' : (alertante || 'Alertante'),
           municipio,
           poblacion,
           direccion,
-          notas,
-          nombrePac,
-          edad,
-          sexo,
+          notas: modoInterrogatorioReal
+            ? '[LLAMADA EN CURSO — REALIZAR INTERROGATORIO TELEFÓNICO AL ALERTANTE]'
+            : notas,
+          nombrePac: modoInterrogatorioReal ? '' : nombrePac,
+          edad: modoInterrogatorioReal ? '' : edad,
+          sexo: modoInterrogatorioReal ? 'H' : sexo,
           lat: coords.lat,
           lng: coords.lng,
           precision: coords.precision
@@ -930,137 +1189,231 @@
       };
 
       return (
-        <div className="flex-1 max-w-5xl w-full mx-auto p-4">
+        <div className="flex-1 max-w-6xl w-full mx-auto p-4">
           <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+            {/* Cabecera Roja */}
             <div className="bg-gradient-to-r from-red-700 to-red-900 px-5 py-3.5 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center text-xl">
-                  <i className="fa-solid fa-phone-flip"></i>
+                  <i className="fa-solid fa-mobile-screen-button"></i>
                 </div>
                 <div>
-                  <h2 className="font-bold text-lg text-white">Terminal de Llamada de Emergencia (AML + Voz)</h2>
-                  <p className="text-xs text-red-100">Envía ubicación GPS AML automática y habla en directo con el Operador 112</p>
+                  <h2 className="font-bold text-lg text-white">Terminal Móvil Alertante (AML + Voz Real)</h2>
+                  <p className="text-xs text-red-100">Simula una llamada real desde la calle al 112 / 061 con envío automático de GPS</p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-bold text-red-200 mr-1">Cargar caso práctico:</span>
                 {CASOS_PRACTICOS_ALERTANTE.map((c, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => cargarCaso(c)}
-                    className="bg-black/30 hover:bg-black/50 text-white text-xs px-2.5 py-1 rounded border border-white/20 transition"
+                    className="bg-black/35 hover:bg-black/60 text-white text-xs px-2.5 py-1 rounded border border-white/25 transition font-semibold"
                   >
-                    <i className="fa-solid fa-wand-magic-sparkles mr-1"></i>
-                    {c.titulo.split(':')[0]}
+                    <i className="fa-solid fa-file-medical mr-1 text-amber-300"></i>
+                    {c.titulo}
                   </button>
                 ))}
               </div>
             </div>
 
             {llamadaActual ? (
+              /* VISTA DE LLAMADA ACTIVA ESTILO SMARTPHONE + LÍNEA VOZ */
               <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-6 space-y-4">
-                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 text-center space-y-2">
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-amber-300">
-                      FICHA {llamadaActual.numFicha} · LÍNEA {llamadaActual.linea}
-                    </span>
-                    <h3 className="text-lg font-bold text-white">
-                      {llamadaActual.estado === 'LLAMADA_ENTRANTE' && 'Llamando al 112... Esperando que descuelgue el Operador'}
-                      {llamadaActual.estado === 'EN_ATENCION' && `En línea con ${llamadaActual.operadorDemanda}`}
-                      {llamadaActual.estado === 'TRASPASADO' && 'Incidente clasificado y traspasado a Coordinación 061'}
-                      {llamadaActual.estado === 'ASIGNADO' && '¡Ambulancia movilizada hacia tu ubicación!'}
-                      {llamadaActual.estado === 'FINALIZADO' && 'Servicio finalizado'}
-                    </h3>
-                    <div className="text-xs text-cyan-400 font-mono">
-                      AML GPS enviado: {llamadaActual.lat}, {llamadaActual.lng} (±{llamadaActual.precision}m)
+                <div className="lg:col-span-5 space-y-4">
+                  {/* Pantalla Smartphone en llamada */}
+                  <div className="bg-slate-950 border-2 border-slate-700 rounded-2xl p-5 text-center space-y-3 shadow-xl">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-red-950 border border-red-600 text-red-300">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                      LLAMADA EMERGENCIA {llamadaActual.linea} · {formatTimer(segundosLlamada)}
                     </div>
+
+                    <div>
+                      <div className="text-2xl font-black text-white tracking-wider">{llamadaActual.linea}</div>
+                      <div className="text-xs font-mono text-amber-400 mt-0.5">Ficha: {llamadaActual.numFicha}</div>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-lg p-2.5 text-xs text-slate-200 border border-slate-800">
+                      {llamadaActual.estado === 'LLAMADA_ENTRANTE' && (
+                        <span className="text-amber-300 font-bold animate-pulse">
+                          <i className="fa-solid fa-phone-volume mr-1.5"></i>
+                          Llamando... Esperando que descuelgue el Gestor de Demanda
+                        </span>
+                      )}
+                      {llamadaActual.estado === 'EN_ATENCION' && (
+                        <span className="text-emerald-400 font-bold">
+                          <i className="fa-solid fa-headset mr-1.5"></i>
+                          En línea con {llamadaActual.operadorDemanda}
+                        </span>
+                      )}
+                      {llamadaActual.estado === 'TRASPASADO' && (
+                        <span className="text-cyan-400 font-bold">
+                          Ficha clasificada y traspasada a Coordinación 061
+                        </span>
+                      )}
+                      {llamadaActual.estado === 'ASIGNADO' && (
+                        <span className="text-emerald-400 font-bold">
+                          🚑 ¡Ambulancia movilizada hacia tu ubicación!
+                        </span>
+                      )}
+                      {llamadaActual.estado === 'FINALIZADO' && 'Llamada y servicio finalizados'}
+                    </div>
+
+                    <div className="text-[11px] text-cyan-400 font-mono">
+                      AML GPS activo: {llamadaActual.lat}, {llamadaActual.lng} (±{llamadaActual.precision}m)
+                    </div>
+
+                    <button
+                      onClick={() => setLlamadaActivaId(null)}
+                      className="w-full bg-red-600 hover:bg-red-500 text-white py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg"
+                    >
+                      <i className="fa-solid fa-phone-slash mr-1.5"></i>
+                      Colgar Llamada
+                    </button>
                   </div>
 
-                  {llamadaActual.consejoAlertante && (
-                    <div className="bg-emerald-950/80 border border-emerald-500 rounded-lg p-3">
-                      <div className="text-xs font-bold text-emerald-400 uppercase mb-1">
-                        <i className="fa-solid fa-kit-medical mr-1.5"></i>
-                        Instrucciones pre-arribo del Operador CECOS:
+                  {/* Tarjeta de guion de roleplay para el alumno alertante */}
+                  {(guionActivo.length > 0 || notas) && (
+                    <div className="bg-amber-950/50 border border-amber-600/70 rounded-xl p-3.5 text-xs space-y-2">
+                      <div className="font-bold text-amber-300 uppercase flex items-center gap-1.5">
+                        <i className="fa-solid fa-masks-theater"></i>
+                        Tu Guion de Roleplay (Solo visible para ti):
                       </div>
-                      <p className="text-sm text-white font-medium">{llamadaActual.consejoAlertante}</p>
+                      {guionActivo.length > 0 ? (
+                        <ul className="space-y-1 text-slate-200 list-disc pl-4">
+                          {guionActivo.map((lineaGuion, i) => (
+                            <li key={i}>{lineaGuion}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-slate-200">{notas}</p>
+                      )}
+                      {nombrePac && (
+                        <div className="pt-1 border-t border-amber-800/50 text-[11px] text-amber-200">
+                          <strong>Datos paciente (si te preguntan):</strong> {nombrePac}, {edad} años, sexo {sexo}.
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {llamadaActual.recursosAsignados?.length > 0 && (
-                    <div className="bg-blue-950/70 border border-blue-500 rounded-lg p-3 text-center">
-                      <span className="text-xs text-blue-300 font-bold uppercase">Unidades en camino: </span>
-                      <span className="text-sm font-black text-white">
-                        {llamadaActual.recursosAsignados.join(', ')}
-                      </span>
+                  {llamadaActual.consejoAlertante && (
+                    <div className="bg-emerald-950/90 border-2 border-emerald-500 rounded-xl p-3.5">
+                      <div className="text-xs font-black text-emerald-400 uppercase mb-1">
+                        <i className="fa-solid fa-kit-medical mr-1.5"></i>
+                        Instrucción Pre-Arribo del Operador 112:
+                      </div>
+                      <p className="text-sm text-white font-semibold">{llamadaActual.consejoAlertante}</p>
                     </div>
                   )}
-
-                  <MapaGIS
-                    incidente={llamadaActual}
-                    unidades={unidades.filter(u => (llamadaActual.recursosAsignados || []).includes(u.id))}
-                    altura="h-52"
-                  />
-
-                  <button
-                    onClick={() => setLlamadaActivaId(null)}
-                    className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-xs font-bold"
-                  >
-                    Colgar llamada y volver
-                  </button>
                 </div>
 
-                {/* Canal de Voz Telefónico Bidireccional con el Operador */}
-                <div className="lg:col-span-6 flex flex-col justify-center">
+                {/* Columna derecha: Voz en línea + Mapa de seguimiento */}
+                <div className="lg:col-span-7 space-y-4">
                   <LineaTelefonicaVoz
                     incidente={llamadaActual}
                     rolEnLlamada="ALERTANTE"
                     nombreEmisor={`Alertante (${llamadaActual.telefono})`}
                     enviarAudioOTextoLlamada={enviarMensajeEnLlamada}
                   />
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-300">Mapa de seguimiento de recursos asignados:</span>
+                      {llamadaActual.recursosAsignados?.length > 0 && (
+                        <span className="bg-emerald-600 text-white px-2 py-0.5 rounded font-bold">
+                          En camino: {llamadaActual.recursosAsignados.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <MapaGIS
+                      incidente={llamadaActual}
+                      unidades={unidades.filter(u => (llamadaActual.recursosAsignados || []).includes(u.id))}
+                      altura="h-48"
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
+              /* FORMULARIO + TECLADO DTMF + MAPA GEOCODING */
               <form onSubmit={realizarLlamada} className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-7 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Línea de Emergencia</label>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setLinea('112')}
-                          className={`py-2 rounded font-black text-xs border ${
-                            linea === '112' ? 'bg-red-600 border-red-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'
-                          }`}
-                        >
-                          112 CAT
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setLinea('061')}
-                          className={`py-2 rounded font-black text-xs border ${
-                            linea === '061' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-400'
-                          }`}
-                        >
-                          061 SEM
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Tu Teléfono (CLI)</label>
-                      <input
-                        type="text"
-                        value={telefono}
-                        onChange={e => setTelefono(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white font-mono"
-                        required
-                      />
+                {/* Columna 1: Teclado de móvil DTMF (3 cols) */}
+                <div className="lg:col-span-3 bg-slate-950 border-2 border-slate-700 rounded-2xl p-3.5 flex flex-col justify-between space-y-3">
+                  <div className="text-center">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Marcador Emergencias</div>
+                    <div className="bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 mt-1 font-mono text-2xl font-black text-white tracking-widest">
+                      {linea || '112'}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => marcarDigito(d)}
+                        className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white font-bold py-2.5 rounded-lg text-sm border border-slate-700"
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { playDTMF('1'); setLinea('112'); }}
+                      className={`py-1.5 rounded font-black text-xs border ${
+                        linea === '112' ? 'bg-red-600 border-red-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      112 CAT
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { playDTMF('0'); setLinea('061'); }}
+                      className={`py-1.5 rounded font-black text-xs border ${
+                        linea === '061' ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      061 SEM
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tu Nº Teléfono (CLI)</label>
+                    <input
+                      type="text"
+                      value={telefono}
+                      onChange={e => setTelefono(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-amber-300 font-mono font-bold text-center"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Columna 2: Datos del incidente y modo realista (5 cols) */}
+                <div className="lg:col-span-5 space-y-3">
+                  {/* Switch de realismo pedagógico */}
+                  <div className="bg-blue-950/60 border border-blue-600/70 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-blue-300">Modo Interrogatorio Realista</div>
+                      <div className="text-[11px] text-slate-300">
+                        {modoInterrogatorioReal
+                          ? 'El operador solo recibe tu teléfono y GPS; debes contarle el caso por voz.'
+                          : 'El operador recibe el texto escrito al instante al descolgar.'}
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={modoInterrogatorioReal}
+                      onChange={e => setModoInterrogatorioReal(e.target.checked)}
+                      className="w-4 h-4 accent-blue-500 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Municipio *</label>
                       <input
@@ -1085,19 +1438,30 @@
 
                   <div>
                     <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Dirección Exacta / Punto Km *</label>
-                    <input
-                      type="text"
-                      placeholder="Calle, número, piso, referencias..."
-                      value={direccion}
-                      onChange={e => setDireccion(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-white"
-                      required
-                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Calle, número, piso o haz clic en el mapa..."
+                        value={direccion}
+                        onChange={e => setDireccion(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-white"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={buscarDireccionEnMapa}
+                        disabled={buscandoDir}
+                        className="bg-slate-700 hover:bg-slate-600 text-white px-3 rounded text-xs font-bold"
+                        title="Situar dirección escrita en el mapa"
+                      >
+                        <i className="fa-solid fa-magnifying-glass-location"></i>
+                      </button>
+                    </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
-                      ¿Qué está ocurriendo? *
+                      Guion / Descripción de lo que ocurre {modoInterrogatorioReal ? '(Para tu roleplay)' : '*'}
                     </label>
                     <textarea
                       rows="3"
@@ -1105,7 +1469,7 @@
                       value={notas}
                       onChange={e => setNotas(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-sm text-white"
-                      required
+                      required={!modoInterrogatorioReal}
                     ></textarea>
                   </div>
 
@@ -1143,13 +1507,13 @@
                   </div>
                 </div>
 
-                {/* Columna derecha: Geolocalización AML interactiva */}
-                <div className="lg:col-span-5 flex flex-col justify-between bg-slate-900/80 border border-slate-700 rounded-xl p-3 space-y-3">
+                {/* Columna 3: Geolocalización AML interactiva (4 cols) */}
+                <div className="lg:col-span-4 flex flex-col justify-between bg-slate-900/80 border border-slate-700 rounded-xl p-3 space-y-2.5">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-cyan-400 uppercase">
                         <i className="fa-solid fa-location-crosshairs mr-1"></i>
-                        Geolocalización AML (GPS)
+                        Geolocalización AML
                       </span>
                       <button
                         type="button"
@@ -1160,15 +1524,12 @@
                       </button>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Haz clic en cualquier punto del mapa para situar el incidente o usa tu GPS real:
+                      Haz clic en el mapa para detectar automáticamente la calle y coordenadas AML:
                     </p>
 
                     <MapaGIS
                       coordenadasSeleccionadas={coords}
-                      onSeleccionarPunto={(pt) => {
-                        setCoords(pt);
-                        setGpsStatus(`Punto fijado en mapa (±${pt.precision}m)`);
-                      }}
+                      onSeleccionarPunto={(pt) => resolverDireccionDesdeCoords(pt.lat, pt.lng, pt.precision)}
                       altura="h-52"
                     />
 
@@ -1176,15 +1537,15 @@
                       <span>LAT: {coords.lat} | LNG: {coords.lng}</span>
                       <span>±{coords.precision}m</span>
                     </div>
-                    <div className="text-[11px] text-slate-400">{gpsStatus}</div>
+                    <div className="text-[11px] text-slate-300 truncate" title={gpsStatus}>{gpsStatus}</div>
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-lg shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 text-sm transition"
+                    className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-3.5 rounded-xl shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 text-sm transition"
                   >
                     <i className="fa-solid fa-phone-volume"></i>
-                    LLAMAR AL {linea} Y ENVIAR AML
+                    LLAMAR AL {linea || '112'} Y ENVIAR AML
                   </button>
                 </div>
               </form>
@@ -1300,6 +1661,7 @@
     // =========================================================================
     function SalaCECOS({
       usuario, onLogout, incidentes, unidades, mensajesRadio,
+      estadoCanalesTetra, actualizarCanalTetra,
       actualizarIncidente, actualizarUnidad, enviarMensajeRadio, reiniciarSimulacion
     }) {
       const [tabActiva, setTabActiva] = useState(usuario.rol === 'DOCENTE' ? 'DEMANDA' : usuario.rol);
@@ -1395,6 +1757,8 @@
               <WalkieTalkieTETRA
                 usuario={usuario}
                 mensajesRadio={mensajesRadio}
+                estadoCanalesTetra={estadoCanalesTetra}
+                actualizarCanalTetra={actualizarCanalTetra}
                 enviarMensajeRadio={enviarMensajeRadio}
               />
             </div>
@@ -1404,11 +1768,11 @@
     }
 
     // =========================================================================
-    // 3A. CONSOLA GESTOR DE DEMANDA (CON MAPA GIS AML Y LÍNEA VOZ ALERTANTE)
+    // 3A. CONSOLA GESTOR DE DEMANDA
     // =========================================================================
     function ConsolaGestorDemanda({ usuario, incidentes, unidades, actualizarIncidente }) {
       const [selectedId, setSelectedId] = useState(null);
-      const [subVista, setSubVista] = useState('FICHA'); // 'FICHA' | 'GIS_VOZ'
+      const [subVista, setSubVista] = useState('FICHA');
       const [form, setForm] = useState({
         telefono: '',
         alertante: '',
@@ -1538,7 +1902,6 @@
             )}
           </div>
 
-          {/* Barra superior */}
           <div className="p-2 border-b border-gray-400 flex flex-wrap items-center justify-between gap-2 bg-[#d4d0c8]">
             <div className="flex flex-wrap items-center gap-1.5">
               <button
@@ -1585,7 +1948,6 @@
             </div>
           </div>
 
-          {/* Tira compacta siempre visible de voz con alertante cuando hay ficha activa */}
           {incidenteActivo && subVista === 'FICHA' && (
             <div className="bg-slate-900 text-white px-3 py-2 border-b border-gray-500 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -1625,7 +1987,7 @@
                       altura="h-72"
                     />
                     <div className="bg-slate-900 p-2 rounded text-xs">
-                      <strong>Dirección declarada:</strong> {incidenteActivo.direccion} ({incidenteActivo.municipio})
+                      <strong>Dirección AML:</strong> {incidenteActivo.direccion} ({incidenteActivo.municipio})
                     </div>
                   </div>
                   <div className="md:col-span-6 flex flex-col justify-center">
@@ -1857,7 +2219,7 @@
     }
 
     // =========================================================================
-    // 3B. CONSOLA GESTOR DE RESPUESTA (CON MAPA GIS DE FLOTA EN TIEMPO REAL)
+    // 3B. CONSOLA GESTOR DE RESPUESTA
     // =========================================================================
     function ConsolaGestorRespuesta({
       usuario, incidentes, unidades, actualizarIncidente, actualizarUnidad, enviarMensajeRadio
@@ -2004,7 +2366,6 @@
                       <div><strong>Prioridad:</strong> <span className="text-red-400 font-bold">{incActivo.clasificacion}</span></div>
                     </div>
 
-                    {/* Mapa GIS Táctico con Incidente y Unidades */}
                     <MapaGIS
                       incidente={incActivo}
                       unidades={unidades}
@@ -2058,7 +2419,7 @@
     }
 
     // =========================================================================
-    // 3C. CONSOLA DE UNIDAD MÓVIL (NAVEGADOR GPS + ESTATUS OPERATIVOS)
+    // 3C. CONSOLA DE UNIDAD MÓVIL
     // =========================================================================
     function ConsolaUnidadMovil({
       usuario, incidentes, unidades, actualizarIncidente, actualizarUnidad, enviarMensajeRadio
@@ -2070,7 +2431,6 @@
         const hora = new Date().toLocaleTimeString('es-ES');
         let nuevasCoords = { lat: miUnidad.lat, lng: miUnidad.lng };
 
-        // Simular desplazamiento GPS hacia el punto del incidente
         if (nuevoEstado === 'EN_CAMINO' && miServicio?.lat) {
           nuevasCoords = {
             lat: Number(((miUnidad.lat + miServicio.lat) / 2).toFixed(6)),
@@ -2246,39 +2606,90 @@
     }
 
     // =========================================================================
-    // 4. EMISORA TETRA / WALKIE-TALKIE (ENTRE SALA Y UNIDADES MÓVILES)
+    // 4. EMISORA TETRA / WALKIE-TALKIE REALISTA (CANAL OCUPADO + AUDIO SIMULTÁNEO)
     // =========================================================================
-    function WalkieTalkieTETRA({ usuario, mensajesRadio, enviarMensajeRadio }) {
+    function WalkieTalkieTETRA({
+      usuario, mensajesRadio, estadoCanalesTetra, actualizarCanalTetra, enviarMensajeRadio
+    }) {
       const [canal, setCanal] = useState('CANAL 1 - EMERGENCIAS');
       const [textoRadio, setTextoRadio] = useState('');
       const [grabando, setGrabando] = useState(false);
-      const [autoPlayRadio, setAutoPlayRadio] = useState(true);
+      const [reproduciendoVoz, setReproduciendoVoz] = useState(false);
+      const [altavozActivo, setAltavozActivo] = useState(true);
+
       const mediaRecorderRef = useRef(null);
       const chunksRef = useRef([]);
       const lastRadioIdRef = useRef(null);
+      const lastTxBannerRef = useRef(null);
       const chatEndRef = useRef(null);
+
+      const miIdentificativo = usuario.indicativo ? `UNIDAD ${usuario.indicativo}` : usuario.user.toUpperCase();
+      const canalDocId = canal.replace(/\s+/g, '_');
+      const infoCanalVivo = estadoCanalesTetra[canalDocId] || null;
+
+      const canalOcupadoPorOtro = useMemo(() => {
+        if (!infoCanalVivo || !infoCanalVivo.transmitiendo) return null;
+        if (infoCanalVivo.emisor === miIdentificativo) return null;
+        if (Date.now() - (infoCanalVivo.updatedAt || 0) > 20000) return null;
+        return infoCanalVivo.emisor;
+      }, [infoCanalVivo, miIdentificativo]);
+
+      useEffect(() => {
+        if (!altavozActivo || !canalOcupadoPorOtro) return;
+        const key = `${canalOcupadoPorOtro}_${infoCanalVivo?.updatedAt}`;
+        if (lastTxBannerRef.current !== key) {
+          lastTxBannerRef.current = key;
+          playTone('ptt_in');
+        }
+      }, [canalOcupadoPorOtro, altavozActivo]);
 
       const mensajesFiltrados = mensajesRadio.filter(m => m.canal === canal);
 
       useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        if (!autoPlayRadio || mensajesFiltrados.length === 0) return;
+        if (mensajesFiltrados.length === 0) return;
         const ultimo = mensajesFiltrados[mensajesFiltrados.length - 1];
-        const miNombreRadio = usuario.indicativo ? `UNIDAD ${usuario.indicativo}` : usuario.user.toUpperCase();
-        if (ultimo.id !== lastRadioIdRef.current && ultimo.emisor !== miNombreRadio && ultimo.audioBase64) {
+
+        if (lastRadioIdRef.current === null) {
           lastRadioIdRef.current = ultimo.id;
-          try {
-            const audio = new Audio(ultimo.audioBase64);
-            audio.play().catch(() => {});
-          } catch (e) {}
+          return;
         }
-      }, [mensajesFiltrados.length]);
+
+        if (ultimo.id !== lastRadioIdRef.current) {
+          lastRadioIdRef.current = ultimo.id;
+          if (!altavozActivo || ultimo.emisor === miIdentificativo) return;
+
+          if (ultimo.tipoAlerta === 'PRIORITARIA') {
+            playTone('alert_tetra');
+          } else if (ultimo.audioBase64) {
+            playRadioVoiceBase64(
+              ultimo.audioBase64,
+              () => setReproduciendoVoz(true),
+              () => setReproduciendoVoz(false)
+            );
+          } else {
+            playTone('ptt_out');
+          }
+        }
+      }, [mensajesFiltrados.length, altavozActivo]);
 
       const iniciarPTT = async () => {
+        if (canalOcupadoPorOtro) {
+          playTone('ptt_out');
+          return;
+        }
+        unlockAudio();
         playTone('ptt_in');
         setGrabando(true);
+        await actualizarCanalTetra(canalDocId, {
+          transmitiendo: true,
+          emisor: miIdentificativo
+        });
+
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true }
+          });
           const mr = new MediaRecorder(stream);
           chunksRef.current = [];
           mr.ondataavailable = (e) => {
@@ -2290,7 +2701,7 @@
             const reader = new FileReader();
             reader.onloadend = async () => {
               await enviarMensajeRadio({
-                emisor: usuario.indicativo ? `UNIDAD ${usuario.indicativo}` : usuario.user.toUpperCase(),
+                emisor: miIdentificativo,
                 canal,
                 texto: '🎙️ Transmisión de voz TETRA',
                 audioBase64: reader.result
@@ -2305,21 +2716,37 @@
         }
       };
 
-      const soltarPTT = () => {
+      const soltarPTT = async () => {
         if (!grabando) return;
         playTone('ptt_out');
         setGrabando(false);
+        await actualizarCanalTetra(canalDocId, {
+          transmitiendo: false,
+          emisor: ''
+        });
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
         }
       };
 
+      const enviarAlertaPrioritaria = async () => {
+        unlockAudio();
+        playTone('alert_tetra');
+        await enviarMensajeRadio({
+          emisor: miIdentificativo,
+          canal,
+          tipoAlerta: 'PRIORITARIA',
+          texto: '🚨 ALERTA PRIORITARIA EN RED — ATENCIÓN TODAS LAS UNIDADES (QAP)'
+        });
+      };
+
       const enviarTextoRadio = async (e) => {
         e.preventDefault();
         if (!textoRadio.trim()) return;
+        unlockAudio();
         playTone('ptt_out');
         await enviarMensajeRadio({
-          emisor: usuario.indicativo ? `UNIDAD ${usuario.indicativo}` : usuario.user.toUpperCase(),
+          emisor: miIdentificativo,
           canal,
           texto: textoRadio.trim()
         });
@@ -2328,9 +2755,12 @@
 
       return (
         <div className="bg-slate-950 border-2 border-slate-700 rounded-2xl p-3 flex flex-col flex-1 shadow-2xl">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 mb-2 flex items-center justify-between">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${grabando ? 'bg-red-500 animate-ping' : 'bg-emerald-500'}`}></div>
+              <div className={`w-3.5 h-3.5 rounded-full ${
+                grabando || canalOcupadoPorOtro ? 'bg-red-500 animate-ping' :
+                reproduciendoVoz ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'
+              }`}></div>
               <div>
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Red RESCAT / TETRA</div>
                 <div className="text-xs font-black text-emerald-400">EMISORA WALKIE-TALKIE</div>
@@ -2347,33 +2777,87 @@
             </select>
           </div>
 
-          <div className="flex justify-end mb-1.5">
-            <label className="flex items-center gap-1 text-[11px] text-slate-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoPlayRadio}
-                onChange={e => setAutoPlayRadio(e.target.checked)}
-              />
-              Altavoz radio automático
-            </label>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !altavozActivo;
+                setAltavozActivo(next);
+                if (next) { unlockAudio(); playTone('ptt_in'); }
+              }}
+              className={`px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1.5 border transition ${
+                altavozActivo
+                  ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                  : 'bg-red-950 border-red-500 text-red-300 animate-pulse'
+              }`}
+            >
+              <i className={`fa-solid ${altavozActivo ? 'fa-volume-high' : 'fa-volume-xmark'}`}></i>
+              {altavozActivo ? 'Altavoz Sala: ON' : 'Activar Altavoz'}
+            </button>
+
+            <button
+              type="button"
+              onClick={enviarAlertaPrioritaria}
+              className="bg-red-900/80 hover:bg-red-700 border border-red-500 text-red-100 px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1"
+            >
+              <i className="fa-solid fa-triangle-exclamation text-amber-300"></i>
+              Tono Alerta
+            </button>
           </div>
 
-          <div className="flex-1 bg-[#142318] border-2 border-slate-700 rounded-xl p-2.5 overflow-y-auto max-h-[300px] space-y-2 font-mono text-xs">
+          {(grabando || canalOcupadoPorOtro || reproduciendoVoz) && (
+            <div className={`mb-2 px-3 py-2 rounded-lg font-mono text-xs font-black flex items-center justify-between ${
+              grabando ? 'bg-red-600 text-white' :
+              canalOcupadoPorOtro ? 'bg-red-950 border border-red-500 text-red-300' :
+              'bg-amber-950 border border-amber-500 text-amber-300'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                <span>
+                  {grabando && `TX EN CURSO (${miIdentificativo})`}
+                  {canalOcupadoPorOtro && `CANAL OCUPADO: ${canalOcupadoPorOtro}`}
+                  {!grabando && !canalOcupadoPorOtro && reproduciendoVoz && 'RX AUDIO EN DIRECTO...'}
+                </span>
+              </div>
+              <div className="flex items-end gap-0.5 h-3.5">
+                <span className="w-1 bg-current eq-animate-1"></span>
+                <span className="w-1 bg-current eq-animate-2"></span>
+                <span className="w-1 bg-current eq-animate-3"></span>
+                <span className="w-1 bg-current eq-animate-4"></span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 bg-[#142318] border-2 border-slate-700 rounded-xl p-2.5 overflow-y-auto max-h-[270px] space-y-2 font-mono text-xs">
             {mensajesFiltrados.length === 0 ? (
               <div className="text-emerald-600/70 text-center py-8 text-[11px]">
-                -- SIN TRÁFICO EN {canal} --<br />
-                Mantén pulsado PTT para hablar o escribe abajo
+                -- FRECUENCIA EN ESCUCHA ({canal}) --<br />
+                Mantén pulsado PTT para hablar a toda la sala
               </div>
             ) : (
               mensajesFiltrados.map(m => (
-                <div key={m.id} className="bg-black/40 border border-emerald-900/60 rounded p-2">
+                <div
+                  key={m.id}
+                  className={`rounded p-2 border ${
+                    m.tipoAlerta === 'PRIORITARIA'
+                      ? 'bg-red-950/90 border-red-500 text-red-100'
+                      : 'bg-black/45 border-emerald-900/60'
+                  }`}
+                >
                   <div className="flex justify-between text-[10px] text-emerald-400 font-bold mb-0.5">
                     <span>{m.emisor}</span>
                     <span>{m.hora}</span>
                   </div>
                   <div className="text-emerald-100">{m.texto}</div>
                   {m.audioBase64 && (
-                    <audio controls src={m.audioBase64} className="w-full h-7 mt-1.5" />
+                    <button
+                      type="button"
+                      onClick={() => playRadioVoiceBase64(m.audioBase64)}
+                      className="mt-1.5 bg-emerald-900/80 hover:bg-emerald-800 border border-emerald-600 text-emerald-200 px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1.5"
+                    >
+                      <i className="fa-solid fa-play"></i>
+                      Repetir transmisión radio
+                    </button>
                   )}
                 </div>
               ))
@@ -2384,19 +2868,26 @@
           <div className="mt-3 space-y-2">
             <button
               type="button"
+              disabled={!!canalOcupadoPorOtro}
               onMouseDown={iniciarPTT}
               onMouseUp={soltarPTT}
               onMouseLeave={soltarPTT}
               onTouchStart={iniciarPTT}
               onTouchEnd={soltarPTT}
               className={`w-full py-3.5 rounded-xl font-black text-sm tracking-wider uppercase transition flex items-center justify-center gap-2 shadow-lg ${
-                grabando
+                canalOcupadoPorOtro
+                  ? 'bg-slate-800 text-red-400 border border-red-800 cursor-not-allowed'
+                  : grabando
                   ? 'bg-red-600 text-white ring-4 ring-red-500/40 scale-[0.99]'
                   : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
               }`}
             >
               <i className="fa-solid fa-microphone-lines text-lg"></i>
-              {grabando ? 'TRANSMITIENDO... SUELTA PARA ENVIAR' : 'MANTENER PULSADO (PTT VOZ)'}
+              {canalOcupadoPorOtro
+                ? `ESPERE — HABLANDO ${canalOcupadoPorOtro}`
+                : grabando
+                ? 'TRANSMITIENDO A TODOS... SUELTA'
+                : 'PULSAR PARA HABLAR (PTT)'}
             </button>
 
             <form onSubmit={enviarTextoRadio} className="flex gap-1.5">
